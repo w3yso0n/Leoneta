@@ -47,7 +47,7 @@ export default function LandingPage() {
             >
               Seguridad
             </Link>
-            <Link href="/dashboard">
+              <Link href="/login">
               <Button variant="ghost" size="sm">
                 Iniciar sesión
               </Button>
@@ -85,7 +85,7 @@ export default function LandingPage() {
                 >
                   Seguridad
                 </Link>
-                <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
                   <Button className="w-full mt-4 bg-accent hover:bg-accent/90 text-accent-foreground">
                     Iniciar sesión
                   </Button>
@@ -113,7 +113,7 @@ export default function LandingPage() {
               sostenible.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
-              <Link href="/dashboard" className="w-full sm:w-auto">
+              <Link href="/login" className="w-full sm:w-auto">
                 <Button
                   size="lg"
                   className="w-full bg-accent hover:bg-accent/90 text-accent-foreground text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 h-auto"
@@ -330,7 +330,7 @@ export default function LandingPage() {
             <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-6 sm:mb-8 text-pretty px-4">
               Únete a miles de estudiantes que ya están ahorrando dinero y cuidando el planeta
             </p>
-            <Link href="/dashboard" className="inline-block w-full sm:w-auto px-4 sm:px-0">
+            <Link href="/login" className="inline-block w-full sm:w-auto px-4 sm:px-0">
               <Button
                 size="lg"
                 className="w-full sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 h-auto"

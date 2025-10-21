@@ -2,17 +2,30 @@
 
 import type React from "react"
 
-import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Search, Plus, List, User, Star, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
+import { AuthGuard } from "@/components/auth-guard"
+import { useAuth } from "@/lib/auth-context"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, logout } = useAuth()
+
+  const handleLogout = () => {
+    logout()
+    router.push("/")
+  }
+
+  const getUserInitials = () => {
+    if (!user) return "US"
+    return `${user.nombre[0]}${user.apellido[0]}`
+  }
 
   const navigation = [
     { name: "Buscar", shortName: "Buscar", href: "/dashboard/buscar", icon: Search },
@@ -22,7 +35,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ]
 
   return (
-    <div className="min-h-screen bg-background pb-20 lg:pb-0">
+    <AuthGuard>
+      <div className="min-h-screen bg-background pb-20 lg:pb-0">
       {/* Mobile Header */}
       <header className="lg:hidden border-b border-border bg-card sticky top-0 z-40 shadow-sm">
         <div className="flex items-center justify-between px-4 py-3">
@@ -98,24 +112,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="border-t border-sidebar-border p-4">
               <div className="flex items-center gap-3 mb-3">
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground">JD</AvatarFallback>
+                  <AvatarImage src={user?.foto} />
+                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground">
+                    {getUserInitials()}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate">Juan Pérez</p>
-                  <p className="text-xs text-sidebar-foreground/60 truncate">Ingeniería</p>
+                  <p className="text-sm font-medium text-sidebar-foreground truncate">
+                    {user?.nombre} {user?.apellido}
+                  </p>
+                  <p className="text-xs text-sidebar-foreground/60 truncate capitalize">
+                    {user?.rol}
+                  </p>
                 </div>
               </div>
-              <Link href="/">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Cerrar sesión
-                </Button>
-              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Cerrar sesión
+              </Button>
             </div>
           </div>
         </aside>
@@ -152,6 +171,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </div>
       </nav>
-    </div>
+      </div>
+    </AuthGuard>
   )
 }
