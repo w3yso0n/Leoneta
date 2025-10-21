@@ -1,19 +1,21 @@
+// app/dashboard/buscar/page.tsx
+
 "use client"
 
-import { useState, useEffect } from "react"
+import { ChatModal } from "@/components/dashboard/chat-modal"
+import { EmptyState } from "@/components/dashboard/empty-state"
+import { MapRoute } from "@/components/dashboard/map-route"
 import { PageHeader } from "@/components/dashboard/page-header"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { ViajeDetailsModal } from "@/components/dashboard/viaje-details-modal"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Clock, Users, Star, DollarSign, Navigation, Loader2, MapPinned, Route } from "lucide-react"
-import { EmptyState } from "@/components/dashboard/empty-state"
-import { ViajeDetailsModal } from "@/components/dashboard/viaje-details-modal"
-import { ChatModal } from "@/components/dashboard/chat-modal"
-import { MapRoute } from "@/components/dashboard/map-route"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Clock, DollarSign, Loader2, MapPin, MapPinned, Navigation, Route, Star, Users } from "lucide-react"
+import { useEffect, useState } from "react"
 
 const CUCEI_ADDRESS = "Blvd. Gral. Marcelino García Barragán 1421, Olímpica, 44430 Guadalajara, Jal."
 

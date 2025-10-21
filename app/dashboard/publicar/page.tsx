@@ -1,19 +1,20 @@
+// app/dashboard/publicar/page.tsx
 "use client"
 
 import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { MapRoute } from "@/components/dashboard/map-route"
 import { PageHeader } from "@/components/dashboard/page-header"
-import { Card } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { MapPin, Clock, Users, DollarSign, CheckCircle2, Navigation, Loader2, MapPinned } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { MapRoute } from "@/components/dashboard/map-route"
+import { CheckCircle2, DollarSign, Loader2, MapPin, MapPinned, Navigation, Users } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 const CUCEI_ADDRESS = "Blvd. Gral. Marcelino García Barragán 1421, Olímpica, 44430 Guadalajara, Jal."
 

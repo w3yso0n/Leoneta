@@ -1,16 +1,18 @@
+// app/dashboard/perfil/page.tsx
+
 "use client"
 
-import { useState } from "react"
 import { PageHeader } from "@/components/dashboard/page-header"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Star, Car, Mail, Phone, MapPin, Edit, Save, X, Navigation, Loader2 } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Car, Edit, Loader2, Mail, MapPin, Navigation, Phone, Save, Star, X } from "lucide-react"
+import { useState } from "react"
 
 interface Resena {
   id: string

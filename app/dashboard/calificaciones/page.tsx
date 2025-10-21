@@ -1,9 +1,11 @@
+// app/dashboard/calificaciones/page.tsx
+
 "use client"
 
 import { PageHeader } from "@/components/dashboard/page-header"
-import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import { Star } from "lucide-react"
 
 interface Resena {

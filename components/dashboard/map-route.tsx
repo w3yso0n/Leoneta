@@ -1,9 +1,11 @@
+// components/dashboard/map-route.tsx
+
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { config } from "@/lib/config"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
-import { config } from "@/lib/config"
+import { useEffect, useRef, useState } from "react"
 
 interface MapRouteProps {
   origin?: string

@@ -1,15 +1,17 @@
+// app/dashboard/mis-viajes/page.tsx
+
 "use client"
 
-import { useState } from "react"
+import { EmptyState } from "@/components/dashboard/empty-state"
 import { PageHeader } from "@/components/dashboard/page-header"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Clock, Users, DollarSign, Calendar, MessageSquare, X, CheckCircle } from "lucide-react"
-import { EmptyState } from "@/components/dashboard/empty-state"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Calendar, CheckCircle, Clock, DollarSign, MapPin, MessageSquare, Users, X } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
 
 interface Viaje {
   id: string
