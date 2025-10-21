@@ -35,6 +35,14 @@ export function MapRoute({
   const geocode = async (address: string): Promise<[number, number] | null> => {
     if (!address || address.trim() === "") return null
     
+    // Si la dirección es coordenadas (formato: lat,lng), parsearlas directamente
+    const coordMatch = address.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/)
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1])
+      const lng = parseFloat(coordMatch[2])
+      return [lng, lat] // Mapbox usa [lng, lat]
+    }
+    
     try {
       const url = `${config.mapbox.geocodingUrl}/${encodeURIComponent(address)}.json?access_token=${config.mapbox.accessToken}&country=MX&proximity=-103.3494,20.6597`
       const response = await fetch(url)
@@ -112,9 +120,17 @@ export function MapRoute({
         if (coords) {
           newOriginCoords = coords
           setOriginCoords(coords)
+          
+          // Determinar el texto del popup
+          let popupText = origin
+          const coordMatch = origin.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/)
+          if (coordMatch) {
+            popupText = "Tu ubicación actual"
+          }
+          
           const marker = new mapboxgl.Marker({ color: "#22c55e" })
             .setLngLat(coords)
-            .setPopup(new mapboxgl.Popup().setHTML(`<p class="text-sm font-medium">Origen: ${origin}</p>`))
+            .setPopup(new mapboxgl.Popup().setHTML(`<p class="text-sm font-medium">Origen: ${popupText}</p>`))
             .addTo(map.current!)
           markersRef.current.push(marker)
         }

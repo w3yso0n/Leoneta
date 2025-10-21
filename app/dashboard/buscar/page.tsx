@@ -124,6 +124,7 @@ const viajesEjemplo: Viaje[] = [
 
 export default function BuscarViajePage() {
   const [miUbicacion, setMiUbicacion] = useState("")
+  const [miUbicacionTexto, setMiUbicacionTexto] = useState("")
   const [ubicacionActual, setUbicacionActual] = useState<{ lat: number; lng: number } | null>(null)
   const [viajes, setViajes] = useState<Viaje[]>([])
   const [selectedViaje, setSelectedViaje] = useState<Viaje | null>(null)
@@ -137,6 +138,24 @@ export default function BuscarViajePage() {
   const [origenRuta, setOrigenRuta] = useState("")
   const [destinoRuta, setDestinoRuta] = useState("")
 
+  // Función para geocodificación inversa
+  const obtenerDireccionDesdeCoordenadas = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}&types=address,poi,neighborhood,locality`
+      )
+      const data = await response.json()
+      
+      if (data.features && data.features.length > 0) {
+        const feature = data.features[0]
+        return feature.place_name || feature.text || "Ubicación actual"
+      }
+    } catch (error) {
+      console.error("Error en geocodificación inversa:", error)
+    }
+    return "Ubicación actual"
+  }
+
   // Obtener ubicación actual
   const obtenerUbicacionActual = () => {
     setGeolocalizando(true)
@@ -149,10 +168,18 @@ export default function BuscarViajePage() {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords
         setUbicacionActual({ lat: latitude, lng: longitude })
-        setMiUbicacion("Mi ubicación actual")
+        
+        // Usar las coordenadas reales para el mapa
+        const coordenadasTexto = `${latitude},${longitude}`
+        setMiUbicacion(coordenadasTexto)
+        
+        // Obtener dirección amigable
+        const direccionAmigable = await obtenerDireccionDesdeCoordenadas(latitude, longitude)
+        setMiUbicacionTexto(direccionAmigable)
+        
         setGeolocalizando(false)
         buscarViajes()
       },
@@ -254,8 +281,11 @@ export default function BuscarViajePage() {
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     placeholder="Ingresa tu dirección o colonia"
-                    value={miUbicacion}
-                    onChange={(e) => setMiUbicacion(e.target.value)}
+                    value={miUbicacionTexto || miUbicacion}
+                    onChange={(e) => {
+                      setMiUbicacion(e.target.value)
+                      setMiUbicacionTexto(e.target.value)
+                    }}
                     className="pl-9 text-sm"
                   />
                 </div>
