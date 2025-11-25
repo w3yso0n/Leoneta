@@ -20,6 +20,20 @@ export default function LoginPage() {
   const router = useRouter()
   const { login } = useAuth()
 
+  // Validar que los campos estén llenos y el email sea válido
+  const isFormValid = () => {
+    if (!email || !password) return false
+    
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) return false
+    
+    // Validar que la contraseña tenga al menos 6 caracteres
+    if (password.length < 6) return false
+    
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
@@ -113,7 +127,7 @@ export default function LoginPage() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || !isFormValid()}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -129,7 +143,7 @@ export default function LoginPage() {
             <Alert className="mt-6 bg-accent/10 border-accent">
               <Info className="h-4 w-4 text-accent" />
               <AlertDescription className="text-sm space-y-2 mt-2">
-                <p className="font-semibold text-accent-foreground">Usuarios de prueba:</p>
+                <p className="font-semibold text-black dark:text-white">Usuarios de prueba:</p>
                 <div className="space-y-1 text-xs">
                   <p><strong>Email:</strong> juan.perez@academicos.udg.mx</p>
                   <p><strong>Email:</strong> maria.gonzalez@academicos.udg.mx</p>

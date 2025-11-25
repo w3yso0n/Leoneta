@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Mail, Lock, User, GraduationCap, Info } from "lucide-react"
+import { ArrowLeft, Mail, Lock, User, GraduationCap, Info, CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
 
 export default function RegistroPage() {
   const [formData, setFormData] = useState({
@@ -20,6 +21,51 @@ export default function RegistroPage() {
     confirmPassword: "",
     rol: "",
   })
+  
+  const [emailError, setEmailError] = useState("")
+  const [isEmailValid, setIsEmailValid] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+
+  const validateEmail = (email: string) => {
+    if (!email) {
+      setEmailError("")
+      setIsEmailValid(false)
+      return
+    }
+
+    const validDomains = ["@alumnos.udg.mx", "@academicos.udg.mx"]
+    const isValid = validDomains.some(domain => email.endsWith(domain))
+    
+    if (!isValid) {
+      setEmailError("Debes usar tu correo institucional (@alumnos.udg.mx o @academicos.udg.mx)")
+      setIsEmailValid(false)
+    } else {
+      setEmailError("")
+      setIsEmailValid(true)
+    }
+  }
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const email = e.target.value
+    setFormData({ ...formData, email })
+    validateEmail(email)
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!isEmailValid) {
+      setEmailError("Debes usar tu correo institucional (@alumnos.udg.mx o @academicos.udg.mx)")
+      return
+    }
+
+    // Simulación de registro exitoso
+    setShowSuccess(true)
+    toast.success("¡Registro exitoso!", {
+      description: `Bienvenido ${formData.nombre} ${formData.apellido}. Tu cuenta ha sido creada.`,
+      duration: 5000,
+    })
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center p-4">
@@ -54,16 +100,25 @@ export default function RegistroPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Información de Demo */}
-            <Alert className="mb-6 bg-accent/10 border-accent">
-              <Info className="h-4 w-4 text-accent" />
-              <AlertDescription className="text-sm mt-2">
-                <p className="font-semibold text-accent-foreground mb-2">Modo Demo</p>
-                <p>El registro estará disponible próximamente. Por ahora, usa los usuarios de prueba en la pantalla de login.</p>
-              </AlertDescription>
-            </Alert>
+            {showSuccess && (
+              <Alert className="mb-6 bg-green-50 border-green-500 dark:bg-green-950 dark:border-green-800">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-sm mt-2">
+                  <p className="font-semibold text-green-800 dark:text-green-300 mb-1">¡Registro exitoso!</p>
+                  <p className="text-green-700 dark:text-green-400">
+                    Bienvenido <strong>{formData.nombre} {formData.apellido}</strong>
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-500 mt-2">
+                    Email: {formData.email} 
+                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-400 mt-3 border-t border-green-300 dark:border-green-700 pt-2">
+                    Hemos enviado un correo de confirmación a <strong>{formData.email}</strong>. Por favor, verifica tu bandeja de entrada y confirma tu cuenta para poder iniciar sesión.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
 
-            <form className="space-y-4 opacity-50 pointer-events-none">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="nombre">Nombre</Label>
@@ -73,7 +128,9 @@ export default function RegistroPage() {
                       id="nombre"
                       placeholder="Juan"
                       className="pl-10"
-                      disabled
+                      value={formData.nombre}
+                      onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                      required
                     />
                   </div>
                 </div>
@@ -82,7 +139,9 @@ export default function RegistroPage() {
                   <Input
                     id="apellido"
                     placeholder="Pérez"
-                    disabled
+                    value={formData.apellido}
+                    onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                    required
                   />
                 </div>
               </div>
@@ -94,18 +153,35 @@ export default function RegistroPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="usuario@academicos.udg.mx"
-                    className="pl-10"
-                    disabled
+                    placeholder="usuario@alumnos.udg.mx"
+                    className={`pl-10 ${emailError ? 'border-destructive focus-visible:ring-destructive' : isEmailValid ? 'border-green-500 focus-visible:ring-green-500' : ''}`}
+                    value={formData.email}
+                    onChange={handleEmailChange}
+                    required
                   />
                 </div>
+                {emailError && (
+                  <p className="text-sm text-destructive font-medium flex items-center gap-1">
+                    {emailError}
+                  </p>
+                )}
+                {isEmailValid && (
+                  <p className="text-sm text-green-600 font-medium flex items-center gap-1">
+                    <span className="inline-block w-4 h-4">✓</span>
+                    Correo institucional válido
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="rol">Rol</Label>
                 <div className="relative">
                   <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
-                  <Select disabled>
+                  <Select 
+                    value={formData.rol} 
+                    onValueChange={(value) => setFormData({ ...formData, rol: value })}
+                    required
+                  >
                     <SelectTrigger className="pl-10">
                       <SelectValue placeholder="Selecciona tu rol" />
                     </SelectTrigger>
@@ -127,7 +203,9 @@ export default function RegistroPage() {
                     type="password"
                     placeholder="••••••••"
                     className="pl-10"
-                    disabled
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required
                   />
                 </div>
               </div>
@@ -141,12 +219,14 @@ export default function RegistroPage() {
                     type="password"
                     placeholder="••••••••"
                     className="pl-10"
-                    disabled
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    required
                   />
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled>
+              <Button type="submit" className="w-full" disabled={!isEmailValid}>
                 Crear Cuenta
               </Button>
             </form>
