@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Clock, DollarSign, Loader2, MapPin, MapPinned, Navigation, Route, Star, Users } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Clock, DollarSign, Filter, Loader2, MapPin, MapPinned, Navigation, Route, Star, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 
 const CUCEI_ADDRESS = "Blvd. Gral. Marcelino García Barragán 1421, Olímpica, 44430 Guadalajara, Jal."
@@ -28,6 +29,7 @@ interface Viaje {
     totalViajes: number
     ubicacion: string
     carrera?: string
+    genero?: "Masculino" | "Femenino"
     vehiculo?: {
       marca: string
       modelo: string
@@ -56,6 +58,7 @@ const viajesEjemplo: Viaje[] = [
       totalViajes: 45,
       ubicacion: "Chapalita, Guadalajara",
       carrera: "Ingeniería Industrial",
+      genero: "Femenino",
       vehiculo: {
         marca: "Honda",
         modelo: "Civic",
@@ -81,6 +84,7 @@ const viajesEjemplo: Viaje[] = [
       totalViajes: 32,
       ubicacion: "Zapopan Centro",
       carrera: "Administración",
+      genero: "Masculino",
       vehiculo: {
         marca: "Nissan",
         modelo: "Versa",
@@ -105,6 +109,7 @@ const viajesEjemplo: Viaje[] = [
       totalViajes: 67,
       ubicacion: "Providencia",
       carrera: "Medicina",
+      genero: "Femenino",
       vehiculo: {
         marca: "Toyota",
         modelo: "Corolla",
@@ -120,13 +125,65 @@ const viajesEjemplo: Viaje[] = [
     preferencias: ["No fumar", "Puntualidad"],
     distanciaKm: 5.8,
   },
+  {
+    id: "4",
+    conductor: {
+      nombre: "Laura Hernández",
+      foto: "/placeholder.svg?height=48&width=48",
+      rating: 4.8,
+      totalViajes: 28,
+      ubicacion: "Americana",
+      carrera: "Sistemas Computacionales",
+      genero: "Femenino",
+      vehiculo: {
+        marca: "Mazda",
+        modelo: "3",
+        color: "Rojo",
+      },
+    },
+    origen: "Av. Américas 1600, Guadalajara",
+    destino: CUCEI_ADDRESS,
+    fecha: "2025-01-15",
+    hora: "07:30",
+    asientosDisponibles: 2,
+    precioSugerido: 18,
+    preferencias: ["No fumar", "Música"],
+    distanciaKm: 3.2,
+  },
+  {
+    id: "5",
+    conductor: {
+      nombre: "Pedro López",
+      foto: "/placeholder.svg?height=48&width=48",
+      rating: 4.6,
+      totalViajes: 22,
+      ubicacion: "Tlaquepaque",
+      carrera: "Química",
+      genero: "Masculino",
+      vehiculo: {
+        marca: "Volkswagen",
+        modelo: "Jetta",
+        color: "Azul",
+      },
+    },
+    origen: "Centro Tlaquepaque, Jalisco",
+    destino: CUCEI_ADDRESS,
+    fecha: "2025-01-15",
+    hora: "06:50",
+    asientosDisponibles: 3,
+    precioSugerido: 15,
+    preferencias: ["Puntualidad"],
+    distanciaKm: 6.1,
+  },
 ]
 
 export default function BuscarViajePage() {
   const [miUbicacion, setMiUbicacion] = useState("")
   const [miUbicacionTexto, setMiUbicacionTexto] = useState("")
+  const [horario, setHorario] = useState("")
   const [ubicacionActual, setUbicacionActual] = useState<{ lat: number; lng: number } | null>(null)
   const [viajes, setViajes] = useState<Viaje[]>([])
+  const [viajesFiltrados, setViajesFiltrados] = useState<Viaje[]>([])
   const [selectedViaje, setSelectedViaje] = useState<Viaje | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showChatModal, setShowChatModal] = useState(false)
@@ -137,6 +194,11 @@ export default function BuscarViajePage() {
   const [rutaViendose, setRutaViendose] = useState<string | null>(null)
   const [origenRuta, setOrigenRuta] = useState("")
   const [destinoRuta, setDestinoRuta] = useState("")
+  const [busquedaRealizada, setBusquedaRealizada] = useState(false)
+  
+  // Estados de filtros
+  const [filtroGenero, setFiltroGenero] = useState<"Todos" | "Masculino" | "Femenino">("Todos")
+  const [filtroPrecio, setFiltroPrecio] = useState<number | null>(null)
 
   // Función para geocodificación inversa
   const obtenerDireccionDesdeCoordenadas = async (lat: number, lng: number): Promise<string> => {
@@ -194,6 +256,42 @@ export default function BuscarViajePage() {
     // Simular búsqueda y ordenar por distancia
     const viajesFiltrados = [...viajesEjemplo].sort((a, b) => (a.distanciaKm || 0) - (b.distanciaKm || 0))
     setViajes(viajesFiltrados)
+    setViajesFiltrados(viajesFiltrados)
+    setBusquedaRealizada(true)
+    setOrigenRuta(miUbicacion)
+    setDestinoRuta(CUCEI_ADDRESS)
+    // Resetear filtros al hacer nueva búsqueda
+    setFiltroGenero("Todos")
+    setFiltroPrecio(null)
+  }
+
+  // Aplicar filtros a los viajes
+  const aplicarFiltros = () => {
+    let resultado = [...viajes]
+
+    // Filtro de género
+    if (filtroGenero !== "Todos") {
+      resultado = resultado.filter(viaje => viaje.conductor.genero === filtroGenero)
+    }
+
+    // Filtro de precio
+    if (filtroPrecio !== null) {
+      resultado = resultado.filter(viaje => viaje.precioSugerido <= filtroPrecio)
+    }
+
+    setViajesFiltrados(resultado)
+  }
+
+  // Aplicar filtros cuando cambien
+  useEffect(() => {
+    if (busquedaRealizada) {
+      aplicarFiltros()
+    }
+  }, [filtroGenero, filtroPrecio, viajes])
+
+  // Validar si el formulario está completo
+  const isFormularioCompleto = () => {
+    return miUbicacion.trim() !== "" && horario.trim() !== ""
   }
 
   const verRutaDeViaje = (viaje: Viaje) => {
@@ -215,12 +313,11 @@ export default function BuscarViajePage() {
   }
 
   useEffect(() => {
-    if (miUbicacion) {
-      buscarViajes()
+    if (busquedaRealizada && miUbicacion) {
       setOrigenRuta(miUbicacion)
       setDestinoRuta(CUCEI_ADDRESS)
     }
-  }, [miUbicacion])
+  }, [miUbicacion, busquedaRealizada])
 
   const handleVerDetalles = (viaje: Viaje) => {
     setSelectedViaje(viaje)
@@ -241,46 +338,49 @@ export default function BuscarViajePage() {
       <Alert className="border-primary/20 bg-primary/5">
         <MapPinned className="h-4 w-4 text-primary" />
         <AlertDescription className="text-sm">
-          <span className="font-semibold">Destino fijo:</span> CUCEI - Todos los viajes van a la universidad
+          <span className="font-semibold">Destino fijo: CUCEI</span> - Completa origen y horario para ver rutas disponibles
         </AlertDescription>
       </Alert>
 
-      {/* Card de ubicación */}
+      {/* Card de búsqueda */}
       <Card className="p-4 sm:p-6">
         <div className="space-y-4">
           <div>
-            <h2 className="text-base sm:text-lg font-bold mb-2 text-card-foreground">¿Dónde te encuentras?</h2>
+            <h2 className="text-base sm:text-lg font-bold mb-2 text-card-foreground">Buscar viaje</h2>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Buscaremos rutas que pasen cerca de tu ubicación
+              Completa todos los campos para buscar rutas disponibles
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              onClick={obtenerUbicacionActual}
-              disabled={geolocalizando}
-              variant="outline"
-              className="flex-1 sm:flex-none"
-            >
-              {geolocalizando ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Obteniendo...
-                </>
-              ) : (
-                <>
-                  <Navigation className="w-4 h-4 mr-2" />
-                  Usar ubicación actual
-                </>
-              )}
-            </Button>
-            <div className="flex-1 flex items-center gap-2">
-              <span className="text-sm text-muted-foreground hidden sm:inline">o</span>
-              <div className="flex-1 space-y-1">
+          {/* Origen */}
+          <div className="space-y-2">
+            <Label htmlFor="origen" className="text-sm">Origen (¿Dónde te encuentras?)</Label>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                onClick={obtenerUbicacionActual}
+                disabled={geolocalizando}
+                variant="outline"
+                className="flex-shrink-0"
+                type="button"
+              >
+                {geolocalizando ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Obteniendo...
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="w-4 h-4 mr-2" />
+                    Usar ubicación actual
+                  </>
+                )}
+              </Button>
+              <div className="flex-1">
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Ingresa tu dirección o colonia"
+                    id="origen"
+                    placeholder="Ej: Plaza del Sol"
                     value={miUbicacionTexto || miUbicacion}
                     onChange={(e) => {
                       setMiUbicacion(e.target.value)
@@ -290,6 +390,35 @@ export default function BuscarViajePage() {
                   />
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Destino fijo */}
+          <div className="space-y-2">
+            <Label className="text-sm">Destino</Label>
+            <div className="relative">
+              <MapPinned className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+              <Input
+                value="CUCEI"
+                disabled
+                className="pl-9 text-sm bg-muted/50 cursor-not-allowed"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">Todos los viajes van a CUCEI</p>
+          </div>
+
+          {/* Horario */}
+          <div className="space-y-2">
+            <Label htmlFor="horario" className="text-sm">Horario</Label>
+            <div className="relative">
+              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="horario"
+                type="time"
+                value={horario}
+                onChange={(e) => setHorario(e.target.value)}
+                className="pl-9 text-sm"
+              />
             </div>
           </div>
 
@@ -305,6 +434,23 @@ export default function BuscarViajePage() {
             />
           </div>
 
+          {/* Botón Buscar */}
+          <Button
+            onClick={buscarViajes}
+            disabled={!isFormularioCompleto()}
+            className="w-full"
+            size="lg"
+          >
+            <MapPin className="w-4 h-4 mr-2" />
+            Buscar viajes a CUCEI
+          </Button>
+
+          {!isFormularioCompleto() && (miUbicacion || horario) && (
+            <p className="text-xs text-muted-foreground text-center">
+              Completa origen y horario para habilitar la búsqueda
+            </p>
+          )}
+
           {errorUbicacion && (
             <Alert variant="destructive">
               <AlertDescription className="text-xs sm:text-sm">{errorUbicacion}</AlertDescription>
@@ -314,7 +460,7 @@ export default function BuscarViajePage() {
       </Card>
 
       {/* Mapa interactivo */}
-      {miUbicacion && (
+      {busquedaRealizada && miUbicacion && (
         <Card className="p-0 overflow-hidden" id="mapa-rutas">
           <MapRoute 
             origin={origenRuta || miUbicacion}
@@ -339,7 +485,7 @@ export default function BuscarViajePage() {
                   ) : (
                     <>
                       <p className="font-medium text-foreground">Tu ruta a CUCEI</p>
-                      <p className="text-muted-foreground text-xs">{CUCEI_ADDRESS}</p>
+                      <p className="text-muted-foreground text-xs">Desde {miUbicacionTexto || miUbicacion}</p>
                     </>
                   )}
                 </div>
@@ -362,28 +508,96 @@ export default function BuscarViajePage() {
       )}
 
       {/* Resultados */}
-      {miUbicacion && (
+      {busquedaRealizada && (
         <>
+          {/* Filtros */}
+          <Card className="p-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">Filtros</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Filtro de género */}
+                <div className="space-y-2">
+                  <Label htmlFor="filtroGenero" className="text-sm">Género del conductor</Label>
+                  <Select value={filtroGenero} onValueChange={(value) => setFiltroGenero(value as any)}>
+                    <SelectTrigger id="filtroGenero" className="text-sm">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Todos">Todos</SelectItem>
+                      <SelectItem value="Femenino">Femenino</SelectItem>
+                      <SelectItem value="Masculino">Masculino</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filtro de precio */}
+                <div className="space-y-2">
+                  <Label htmlFor="filtroPrecio" className="text-sm">Precio máximo</Label>
+                  <Select 
+                    value={filtroPrecio?.toString() || "todos"} 
+                    onValueChange={(value) => setFiltroPrecio(value === "todos" ? null : Number(value))}
+                  >
+                    <SelectTrigger id="filtroPrecio" className="text-sm">
+                      <SelectValue placeholder="Sin límite" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Sin límite</SelectItem>
+                      <SelectItem value="20">Menor a $20</SelectItem>
+                      <SelectItem value="30">Menor a $30</SelectItem>
+                      <SelectItem value="40">Menor a $40</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {(filtroGenero !== "Todos" || filtroPrecio !== null) && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
+                  <span>Filtros activos</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setFiltroGenero("Todos")
+                      setFiltroPrecio(null)
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    Limpiar filtros
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Card>
+
           <div className="flex items-center justify-between px-1">
             <div>
               <p className="text-sm sm:text-base font-semibold text-foreground">
-                {viajes.length} {viajes.length === 1 ? "ruta disponible" : "rutas disponibles"}
+                {viajesFiltrados.length} {viajesFiltrados.length === 1 ? "ruta disponible" : "rutas disponibles"}
               </p>
-              <p className="text-xs text-muted-foreground">Ordenadas por cercanía a tu ubicación</p>
+              <p className="text-xs text-muted-foreground">
+                {viajes.length !== viajesFiltrados.length 
+                  ? `${viajes.length} rutas encontradas, ${viajesFiltrados.length} con filtros aplicados`
+                  : "Ordenadas por cercanía a tu ubicación"
+                }
+              </p>
             </div>
           </div>
 
-          {viajes.length === 0 ? (
+          {viajesFiltrados.length === 0 ? (
             <Card>
               <EmptyState
                 icon={MapPin}
-                title="No hay rutas cerca"
-                description="Intenta con otra ubicación o fecha."
+                title="No hay rutas con estos filtros"
+                description="Intenta ajustar los filtros o realiza una nueva búsqueda."
               />
             </Card>
           ) : (
             <div className="grid gap-3 sm:gap-4">
-              {viajes.map((viaje) => (
+              {viajesFiltrados.map((viaje) => (
                 <Card 
                   key={viaje.id} 
                   className={`p-4 sm:p-5 transition-all ${
@@ -502,12 +716,12 @@ export default function BuscarViajePage() {
       )}
 
       {/* Estado inicial */}
-      {!miUbicacion && (
+      {!busquedaRealizada && (
         <Card>
           <EmptyState
             icon={Navigation}
-            title="Comparte tu ubicación"
-            description="Ingresa tu dirección o usa tu ubicación actual para encontrar rutas cerca de ti."
+            title="Busca tu viaje ideal"
+            description="Completa el formulario con origen, destino y horario para encontrar rutas disponibles."
           />
         </Card>
       )}

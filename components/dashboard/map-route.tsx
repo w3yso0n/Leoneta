@@ -188,7 +188,7 @@ export function MapRoute({
       } else if (newOriginCoords || newDestCoords) {
         // Fit to single marker
         const coords = newOriginCoords || newDestCoords
-        if (coords) {
+        if (coords && map.current) {
           map.current.flyTo({ center: coords, zoom: 13, duration: 1000 })
         }
       }
