@@ -490,7 +490,7 @@ export default function BuscarViajePage() {
                         className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground text-sm sm:text-base"
                         size="sm"
                       >
-                        Solicitar viaje
+                        Unirse al ride
                       </Button>
                     </div>
                   </div>

@@ -65,10 +65,11 @@ export function ViajeDetailsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Detalles del viaje</DialogTitle>
-          <DialogDescription>Revisa la información completa antes de solicitar unirte</DialogDescription>
+          <DialogTitle className="text-2xl">Unirse al ride</DialogTitle>
+          <DialogDescription>
+            ¿Deseas unirte al ride de <strong>{viaje.conductor.nombre}</strong>?
+          </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-6 py-4">
           {/* Conductor Info */}
           <div className="flex items-start gap-4">
@@ -197,38 +198,29 @@ export function ViajeDetailsModal({
             </>
           )}
 
-          {/* Acciones */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
-            {solicitado ? (
-              <div className="flex items-center justify-center gap-2 p-4 bg-accent/10 rounded-lg flex-1">
-                <CheckCircle className="w-5 h-5 text-accent" />
-                <span className="font-medium text-accent">Solicitud enviada</span>
-              </div>
-            ) : (
-              <>
-                {onSolicitar && (
-                  <Button
-                    onClick={handleSolicitar}
-                    disabled={solicitando}
-                    className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground"
-                  >
-                    {solicitando ? "Enviando..." : "Solicitar unirme"}
-                  </Button>
-                )}
-                {onAceptar && (
-                  <Button onClick={onAceptar} className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
-                    Aceptar pasajero
-                  </Button>
-                )}
-                {onChat && (
-                  <Button onClick={onChat} variant="outline" className="sm:w-auto bg-transparent">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Chat
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
+        {/* Confirmación */}
+        <div className="flex flex-col sm:flex-row gap-3 pt-4 justify-end">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="sm:w-auto"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSolicitar}
+            disabled={solicitando}
+            className="sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground"
+          >
+            {solicitando ? "Confirmando..." : "Confirmar"}
+          </Button>
+          {onChat && (
+            <Button onClick={onChat} variant="ghost" className="sm:w-auto">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Chat
+            </Button>
+          )}
+        </div>
         </div>
       </DialogContent>
     </Dialog>
