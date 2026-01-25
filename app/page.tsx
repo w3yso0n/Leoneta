@@ -20,7 +20,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-2 sm:py-3 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 sm:gap-3">
             <Image 
               src="/logos/udg.png" 
@@ -135,7 +135,7 @@ export default function LandingPage() {
         <div className="absolute top-20 right-10 w-72 h-72 bg-accent/10 rounded-full blur-3xl" />
         <div className="absolute bottom-20 left-10 w-96 h-96 bg-primary-foreground/10 rounded-full blur-3xl" />
         
-        <div className="container mx-auto px-4 py-10 sm:py-14 lg:py-20 relative max-w-7xl">
+        <div className="container mx-auto px-4 py-6 sm:py-8 lg:py-10 relative max-w-7xl">
           <div className="grid lg:grid-cols-2 gap-6 lg:gap-8 xl:gap-10 items-center">
             {/* Left content */}
             <div className="text-center lg:text-left order-2 lg:order-1">
@@ -225,48 +225,89 @@ export default function LandingPage() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-24 sm:py-32 lg:py-40">
+      <section className="py-8 sm:py-10 lg:py-12 bg-muted/30">
         <div className="container mx-auto px-4 max-w-7xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12 sm:gap-14 lg:gap-16">
-            <Image
-              src="/dinero-ahorrado.png"
-              alt="Ilustración sobre dinero ahorrado compartiendo viajes"
-              width={1200}
-              height={900}
-              className="w-full rounded-3xl object-contain"
-              loading="lazy"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            />
-            <Image
-              src="/contribucion-ambiental.png"
-              alt="Ilustración sobre contribución ambiental de carpooling"
-              width={1200}
-              height={900}
-              className="w-full rounded-3xl object-contain"
-              loading="lazy"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            />
-            <Image
-              src="/estudiantes-conectados.png"
-              alt="Ilustración de estudiantes conectados en la comunidad"
-              width={1200}
-              height={900}
-              className="w-full rounded-3xl object-contain"
-              loading="lazy"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            />
+          <div className="text-center mb-6 sm:mb-8">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4">
+              Impacto real en tu vida
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Miles de estudiantes ya están transformando su experiencia universitaria
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-10 lg:gap-12">
+            <div className="text-center group">
+              <div className="mb-4 transform group-hover:scale-105 transition-transform duration-300">
+                <Image
+                  src="/dinero_ahorrado.png"
+                  alt="Ilustración sobre dinero ahorrado compartiendo viajes"
+                  width={1200}
+                  height={900}
+                  className="w-full rounded-3xl object-contain"
+                  loading="lazy"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                />
+              </div>
+              <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border-2 border-border">
+                <div className="text-4xl sm:text-5xl font-bold text-accent mb-2">$12,500</div>
+                <div className="text-lg font-semibold text-card-foreground mb-2">Ahorrados por semestre</div>
+                <p className="text-sm text-muted-foreground">
+                  Promedio de ahorro al compartir viajes todos los días
+                </p>
+              </div>
+            </div>
+            <div className="text-center group">
+              <div className="mb-4 transform group-hover:scale-105 transition-transform duration-300">
+                <Image
+                  src="/contribucion_ambiental.png"
+                  alt="Ilustración sobre contribución ambiental de carpooling"
+                  width={1200}
+                  height={900}
+                  className="w-full rounded-3xl object-contain"
+                  loading="lazy"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                />
+              </div>
+              <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border-2 border-border">
+                <div className="text-4xl sm:text-5xl font-bold text-green-600 mb-2">850 kg</div>
+                <div className="text-lg font-semibold text-card-foreground mb-2">CO₂ reducido al año</div>
+                <p className="text-sm text-muted-foreground">
+                  Equivalente a plantar 40 árboles por estudiante
+                </p>
+              </div>
+            </div>
+            <div className="text-center group sm:col-span-2 lg:col-span-1">
+              <div className="mb-4 transform group-hover:scale-105 transition-transform duration-300">
+                <Image
+                  src="/comunidad_conectada.png"
+                  alt="Ilustración de estudiantes conectados en la comunidad"
+                  width={1200}
+                  height={900}
+                  className="w-full rounded-3xl object-contain"
+                  loading="lazy"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                />
+              </div>
+              <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-6 border-2 border-border">
+                <div className="text-4xl sm:text-5xl font-bold text-primary mb-2">5,000+</div>
+                <div className="text-lg font-semibold text-card-foreground mb-2">Estudiantes conectados</div>
+                <p className="text-sm text-muted-foreground">
+                  Comunidad activa compartiendo viajes diariamente
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* How it Works */}
-      <section id="como-funciona" className="py-16 sm:py-20 md:py-24 bg-background scroll-mt-16 relative overflow-hidden">
+      <section id="como-funciona" className="py-8 sm:py-10 md:py-12 bg-background scroll-mt-16 relative overflow-hidden">
         {/* Decorative background */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         
         <div className="container mx-auto px-4 relative z-10">
-          <div className="text-center mb-12 sm:mb-16">
+          <div className="text-center mb-6 sm:mb-8">
             <div className="inline-block mb-4">
               <Badge variant="secondary" className="text-sm px-4 py-2">
                 Proceso simple
@@ -280,7 +321,7 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 max-w-5xl mx-auto">
-            <Card className="p-6 sm:p-8 text-center hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-primary/50 relative group">
+            <Card className="p-4 sm:p-6 text-center hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-primary/50 relative group">
               <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-all" />
               <div className="relative">
                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-primary to-primary/70 rounded-3xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg">
@@ -330,12 +371,12 @@ export default function LandingPage() {
       </section>
 
       {/* Benefits */}
-      <section id="beneficios" className="py-16 sm:py-20 md:py-24 bg-muted/30 scroll-mt-16 relative overflow-hidden">
+      <section id="beneficios" className="py-8 sm:py-10 md:py-12 bg-muted/30 scroll-mt-16 relative overflow-hidden">
         <div className="absolute top-20 left-10 w-72 h-72 bg-accent/5 rounded-full blur-3xl" />
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         
         <div className="container mx-auto px-4 relative z-10">
-          <div className="text-center mb-12 sm:mb-16">
+          <div className="text-center mb-6 sm:mb-8">
             <div className="inline-block mb-4">
               <Badge variant="secondary" className="text-sm px-4 py-2">
                 ¿Por qué elegirnos?
@@ -349,7 +390,7 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-6xl mx-auto">
-            <Card className="p-6 sm:p-7 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-accent/30 group">
+            <Card className="p-4 sm:p-5 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-accent/30 group">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-accent to-accent/70 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
                   <Zap className="w-6 h-6 sm:w-7 sm:h-7 text-accent-foreground" />
@@ -362,7 +403,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </Card>
-            <Card className="p-6 sm:p-7 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-primary/30 group">
+            <Card className="p-4 sm:p-5 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-primary/30 group">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-primary to-primary/70 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
                   <Leaf className="w-6 h-6 sm:w-7 sm:h-7 text-primary-foreground" />
@@ -375,7 +416,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </Card>
-            <Card className="p-6 sm:p-7 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-accent/30 group">
+            <Card className="p-4 sm:p-5 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-accent/30 group">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-accent to-accent/70 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
                   <Users className="w-6 h-6 sm:w-7 sm:h-7 text-accent-foreground" />
@@ -388,7 +429,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </Card>
-            <Card className="p-6 sm:p-7 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-primary/30 group">
+            <Card className="p-4 sm:p-5 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-primary/30 group">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-primary to-primary/70 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
                   <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-primary-foreground" />
@@ -401,7 +442,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </Card>
-            <Card className="p-6 sm:p-7 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-accent/30 group">
+            <Card className="p-4 sm:p-5 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-accent/30 group">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-accent to-accent/70 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
                   <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-accent-foreground" />
@@ -414,7 +455,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </Card>
-            <Card className="p-6 sm:p-7 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-primary/30 group">
+            <Card className="p-4 sm:p-5 hover:shadow-2xl hover:scale-105 transition-all duration-300 border-2 hover:border-primary/30 group">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-primary to-primary/70 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
                   <Star className="w-6 h-6 sm:w-7 sm:h-7 text-primary-foreground" />
@@ -432,11 +473,18 @@ export default function LandingPage() {
       </section>
 
       {/* Security Section */}
-      <section id="seguridad" className="py-16 sm:py-20 md:py-24 bg-primary text-primary-foreground scroll-mt-16">
+      <section id="seguridad" className="py-8 sm:py-10 md:py-12 bg-primary text-primary-foreground scroll-mt-16">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-accent rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
-              <Shield className="w-8 h-8 sm:w-10 sm:h-10 text-accent-foreground" />
+            <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-4 sm:mb-6">
+              <Image
+                src="/seguridad.png"
+                alt="Ilustración de seguridad con escudo y verificación UDG"
+                width={400}
+                height={400}
+                className="w-full h-auto drop-shadow-2xl"
+                loading="lazy"
+              />
             </div>
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 text-balance px-4">Tu seguridad es nuestra prioridad</h2>
             <p className="text-base sm:text-lg md:text-xl text-primary-foreground/90 mb-6 sm:mb-8 text-pretty leading-relaxed px-4">
@@ -462,8 +510,18 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 sm:py-20 md:py-24 bg-background">
-        <div className="container mx-auto px-4">
+      <section className="py-8 sm:py-10 md:py-12 bg-background relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl opacity-20">
+          <Image
+            src="/CTA_final.png"
+            alt="Ilustración de coche compartido hacia el campus"
+            width={1400}
+            height={1000}
+            className="w-full h-auto"
+            loading="lazy"
+          />
+        </div>
+        <div className="container mx-auto px-4 relative z-10">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4 sm:mb-6 text-balance px-4">
               Comienza a compartir viajes hoy
@@ -484,7 +542,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-card py-10 sm:py-12">
+      <footer className="border-t border-border bg-card py-6 sm:py-8">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-6 sm:mb-8">
             <div className="col-span-2 sm:col-span-2 md:col-span-1">
