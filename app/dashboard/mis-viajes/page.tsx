@@ -8,10 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, CheckCircle, Clock, DollarSign, MapPin, MessageSquare, Users, X } from "lucide-react"
+import { Calendar, CheckCircle, CheckCircle2, Clock, Copy, DollarSign, Filter, MapPin, MessageSquare, RotateCcw, Search, Users, X } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 interface Viaje {
   id: string
@@ -121,11 +123,88 @@ const viajesPasajero: Viaje[] = [
 
 export default function MisViajesPage() {
   const [activeTab, setActiveTab] = useState("conductor")
+  const [tripsConductor, setTripsConductor] = useState<Viaje[]>(viajesConductor)
+  const [tripsPasajero, setTripsPasajero] = useState<Viaje[]>(viajesPasajero)
+  const [filtroEstado, setFiltroEstado] = useState<"todos" | "proximo" | "completado" | "cancelado">("todos")
+  const [filtroDesde, setFiltroDesde] = useState("")
+  const [filtroHasta, setFiltroHasta] = useState("")
+  const [filtroTexto, setFiltroTexto] = useState("")
 
-  const proximosConductor = viajesConductor.filter((v) => v.estado === "proximo")
-  const completadosConductor = viajesConductor.filter((v) => v.estado === "completado")
-  const proximosPasajero = viajesPasajero.filter((v) => v.estado === "proximo")
-  const completadosPasajero = viajesPasajero.filter((v) => v.estado === "completado")
+  const aplicaFiltros = (lista: Viaje[]) => {
+    return lista.filter((v) => {
+      const fechaMs = new Date(v.fecha).getTime()
+      if (filtroEstado !== "todos" && v.estado !== filtroEstado) return false
+      if (filtroDesde && fechaMs < new Date(filtroDesde).getTime()) return false
+      if (filtroHasta && fechaMs > new Date(filtroHasta).getTime()) return false
+
+      if (filtroTexto.trim()) {
+        const term = filtroTexto.toLowerCase()
+        const pasajeroMatch = v.pasajeros?.some((p) => p.nombre.toLowerCase().includes(term))
+        const conductorMatch = v.conductor?.nombre.toLowerCase().includes(term)
+        const rutaMatch = `${v.origen} ${v.destino}`.toLowerCase().includes(term)
+        if (!(pasajeroMatch || conductorMatch || rutaMatch)) return false
+      }
+      return true
+    })
+  }
+
+  const filtradosConductor = useMemo(() => aplicaFiltros(tripsConductor), [tripsConductor, filtroEstado, filtroDesde, filtroHasta, filtroTexto])
+  const filtradosPasajero = useMemo(() => aplicaFiltros(tripsPasajero), [tripsPasajero, filtroEstado, filtroDesde, filtroHasta, filtroTexto])
+
+  const proximosConductor = useMemo(() => filtradosConductor.filter((v) => v.estado === "proximo"), [filtradosConductor])
+  const completadosConductor = useMemo(() => filtradosConductor.filter((v) => v.estado === "completado"), [filtradosConductor])
+  const canceladosConductor = useMemo(() => filtradosConductor.filter((v) => v.estado === "cancelado"), [filtradosConductor])
+  const proximosPasajero = useMemo(() => filtradosPasajero.filter((v) => v.estado === "proximo"), [filtradosPasajero])
+  const completadosPasajero = useMemo(() => filtradosPasajero.filter((v) => v.estado === "completado"), [filtradosPasajero])
+  const canceladosPasajero = useMemo(() => filtradosPasajero.filter((v) => v.estado === "cancelado"), [filtradosPasajero])
+
+  const resumen = useMemo(() => {
+    const total = filtradosConductor.length + filtradosPasajero.length
+    const completados = [...filtradosConductor, ...filtradosPasajero].filter((v) => v.estado === "completado").length
+    const proximos = [...filtradosConductor, ...filtradosPasajero].filter((v) => v.estado === "proximo").length
+    const cancelados = [...filtradosConductor, ...filtradosPasajero].filter((v) => v.estado === "cancelado").length
+    return { total, completados, proximos, cancelados }
+  }, [filtradosConductor, filtradosPasajero])
+
+  const formatFecha = (fecha: string) =>
+    new Date(fecha).toLocaleDateString("es-MX", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+
+  const handleCancelar = (id: string, rol: "conductor" | "pasajero") => {
+    if (!window.confirm("¿Seguro que deseas cancelar este viaje?")) return
+    if (rol === "conductor") {
+      setTripsConductor((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "cancelado" } : v)))
+    } else {
+      setTripsPasajero((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "cancelado" } : v)))
+    }
+  }
+
+  const handleCompletar = (id: string, rol: "conductor" | "pasajero") => {
+    if (rol === "conductor") {
+      setTripsConductor((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "completado" } : v)))
+    } else {
+      setTripsPasajero((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "completado" } : v)))
+    }
+  }
+
+  const handleDuplicar = (viaje: Viaje, rol: "conductor" | "pasajero") => {
+    const nuevo: Viaje = {
+      ...viaje,
+      id: `${viaje.id}-copy-${Date.now()}`,
+      estado: "proximo",
+      fecha: viaje.fecha,
+    }
+    if (rol === "conductor") {
+      setTripsConductor((prev) => [nuevo, ...prev])
+    } else {
+      setTripsPasajero((prev) => [nuevo, ...prev])
+    }
+  }
+
+  const filtrosActivos = filtroEstado !== "todos" || filtroDesde !== "" || filtroHasta !== "" || filtroTexto.trim() !== ""
 
   return (
     <div>
@@ -138,6 +217,94 @@ export default function MisViajesPage() {
           </Link>
         }
       />
+
+      <div className="grid gap-3 md:grid-cols-3 mb-6">
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">Próximos</p>
+          <p className="text-2xl font-bold text-foreground">{resumen.proximos}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">Completados</p>
+          <p className="text-2xl font-bold text-foreground">{resumen.completados}</p>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Total</p>
+            {resumen.cancelados > 0 && (
+              <Badge variant="secondary" className="text-[10px]">{resumen.cancelados} cancelados</Badge>
+            )}
+          </div>
+          <p className="text-2xl font-bold text-foreground">{resumen.total}</p>
+        </Card>
+      </div>
+
+      <Card className="p-4 sm:p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 text-sm font-semibold text-card-foreground">
+            <Filter className="w-4 h-4" />
+            <span>Filtros</span>
+          </div>
+          {filtrosActivos && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFiltroEstado("todos")
+                setFiltroDesde("")
+                setFiltroHasta("")
+                setFiltroTexto("")
+              }}
+              className="h-8 text-xs"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Limpiar
+            </Button>
+          )}
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="md:col-span-1">
+            <div className="relative">
+              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                value={filtroTexto}
+                onChange={(e) => setFiltroTexto(e.target.value)}
+                placeholder="Buscar por ruta, conductor o pasajero"
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="date"
+              value={filtroDesde}
+              onChange={(e) => setFiltroDesde(e.target.value)}
+              placeholder="Desde"
+            />
+            <Input
+              type="date"
+              value={filtroHasta}
+              onChange={(e) => setFiltroHasta(e.target.value)}
+              placeholder="Hasta"
+            />
+          </div>
+          <div>
+            <Select value={filtroEstado} onValueChange={(v) => setFiltroEstado(v as any)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="proximo">Próximos</SelectItem>
+                <SelectItem value="completado">Completados</SelectItem>
+                <SelectItem value="cancelado">Cancelados</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">Los filtros se aplican a ambas vistas (conductor y pasajero).</p>
+      </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -181,12 +348,7 @@ export default function MisViajesPage() {
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <Clock className="w-4 h-4" />
                             <span>
-                              {new Date(viaje.fecha).toLocaleDateString("es-MX", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}{" "}
-                              - {viaje.hora}
+                              {formatFecha(viaje.fecha)} - {viaje.hora}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-muted-foreground">
@@ -204,7 +366,12 @@ export default function MisViajesPage() {
                         {/* Pasajeros */}
                         {viaje.pasajeros && viaje.pasajeros.length > 0 && (
                           <div>
-                            <p className="text-sm font-medium mb-2 text-card-foreground">Pasajeros confirmados:</p>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm font-medium text-card-foreground">Pasajeros confirmados</p>
+                              <Badge variant="outline" className="text-xs">
+                                {viaje.pasajeros.length}/{viaje.asientosTotales} ocupados
+                              </Badge>
+                            </div>
                             <div className="flex flex-wrap gap-3">
                               {viaje.pasajeros.map((pasajero, index) => (
                                 <div key={index} className="flex items-center gap-2 bg-muted rounded-lg px-3 py-2">
@@ -237,9 +404,26 @@ export default function MisViajesPage() {
                         <Button
                           variant="outline"
                           className="flex-1 lg:w-full text-destructive hover:text-destructive bg-transparent"
+                          onClick={() => handleCancelar(viaje.id, "conductor")}
                         >
                           <X className="w-4 h-4 mr-2" />
                           Cancelar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="flex-1 lg:w-full"
+                          onClick={() => handleCompletar(viaje.id, "conductor")}
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Marcar completado
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="flex-1 lg:w-full"
+                          onClick={() => handleDuplicar(viaje, "conductor")}
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          Duplicar
                         </Button>
                       </div>
                     </div>
@@ -281,12 +465,7 @@ export default function MisViajesPage() {
                         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4" />
-                            <span>
-                              {new Date(viaje.fecha).toLocaleDateString("es-MX", {
-                                day: "numeric",
-                                month: "short",
-                              })}
-                            </span>
+                            <span>{formatFecha(viaje.fecha)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4" />
@@ -300,6 +479,31 @@ export default function MisViajesPage() {
               </div>
             )}
           </div>
+
+          {/* Viajes cancelados */}
+          {canceladosConductor.length > 0 && (
+            <div>
+              <h2 className="text-xl font-bold mb-4 text-foreground">Viajes cancelados</h2>
+              <div className="grid gap-4">
+                {canceladosConductor.map((viaje) => (
+                  <Card key={viaje.id} className="p-6 border-destructive/30">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Badge variant="destructive" className="text-xs">Cancelado</Badge>
+                      <span className="text-sm text-muted-foreground">{formatFecha(viaje.fecha)} - {viaje.hora}</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-card-foreground">{viaje.origen}</p>
+                        <div className="h-4 border-l-2 border-dashed border-border ml-2 my-1" />
+                        <p className="font-medium text-card-foreground">{viaje.destino}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* Tab: Como Pasajero */}
@@ -355,16 +559,11 @@ export default function MisViajesPage() {
                         {/* Detalles */}
                         <div className="flex flex-wrap gap-4 text-sm">
                           <div className="flex items-center gap-2 text-muted-foreground">
-                            <Clock className="w-4 h-4" />
-                            <span>
-                              {new Date(viaje.fecha).toLocaleDateString("es-MX", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}{" "}
-                              - {viaje.hora}
-                            </span>
-                          </div>
+                              <Clock className="w-4 h-4" />
+                              <span>
+                                {formatFecha(viaje.fecha)} - {viaje.hora}
+                              </span>
+                            </div>
                           <div className="flex items-center gap-2 text-accent font-medium">
                             <DollarSign className="w-4 h-4" />
                             <span>${viaje.precioSugerido} MXN</span>
@@ -381,9 +580,26 @@ export default function MisViajesPage() {
                         <Button
                           variant="outline"
                           className="flex-1 lg:w-full text-destructive hover:text-destructive bg-transparent"
+                          onClick={() => handleCancelar(viaje.id, "pasajero")}
                         >
                           <X className="w-4 h-4 mr-2" />
                           Cancelar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="flex-1 lg:w-full"
+                          onClick={() => handleCompletar(viaje.id, "pasajero")}
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Marcar completado
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="flex-1 lg:w-full"
+                          onClick={() => handleDuplicar(viaje, "pasajero")}
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          Duplicar
                         </Button>
                       </div>
                     </div>
@@ -442,17 +658,24 @@ export default function MisViajesPage() {
 
                         <div className="text-sm text-muted-foreground">
                           <Clock className="w-4 h-4 inline mr-2" />
-                          {new Date(viaje.fecha).toLocaleDateString("es-MX", {
-                            day: "numeric",
-                            month: "short",
-                          })}
+                          {formatFecha(viaje.fecha)}
                         </div>
                       </div>
 
                       <div className="flex items-center lg:w-40 flex-shrink-0">
-                        <Button variant="outline" className="w-full bg-transparent">
-                          Calificar viaje
-                        </Button>
+                        <div className="flex flex-col gap-2 w-full">
+                          <Button variant="outline" className="w-full bg-transparent">
+                            Calificar viaje
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="w-full"
+                            onClick={() => handleDuplicar(viaje, "pasajero")}
+                          >
+                            <Copy className="w-4 h-4 mr-2" />
+                            Duplicar
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -460,6 +683,31 @@ export default function MisViajesPage() {
               </div>
             )}
           </div>
+
+          {/* Viajes cancelados */}
+          {canceladosPasajero.length > 0 && (
+            <div>
+              <h2 className="text-xl font-bold mb-4 text-foreground">Viajes cancelados</h2>
+              <div className="grid gap-4">
+                {canceladosPasajero.map((viaje) => (
+                  <Card key={viaje.id} className="p-6 border-destructive/30">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Badge variant="destructive" className="text-xs">Cancelado</Badge>
+                      <span className="text-sm text-muted-foreground">{formatFecha(viaje.fecha)} - {viaje.hora}</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-card-foreground">{viaje.origen}</p>
+                        <div className="h-4 border-l-2 border-dashed border-border ml-2 my-1" />
+                        <p className="font-medium text-card-foreground">{viaje.destino}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

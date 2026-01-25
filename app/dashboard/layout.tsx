@@ -32,6 +32,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Publicar", shortName: "Publicar", href: "/dashboard/publicar", icon: Plus },
     { name: "Mis viajes", shortName: "Viajes", href: "/dashboard/mis-viajes", icon: List },
     { name: "Perfil", shortName: "Perfil", href: "/dashboard/perfil", icon: User },
+    { name: "Calificaciones", shortName: "Califica", href: "/dashboard/calificaciones", icon: Star },
   ]
 
   return (
@@ -77,7 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Navigation */}
             <nav className="flex-1 px-3 py-6 space-y-1">
               {navigation.map((item) => {
-                const isActive = pathname === item.href
+                const isActive = pathname.startsWith(item.href)
                 return (
                   <Link
                     key={item.name}
@@ -88,24 +89,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
                         : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
                     )}
+                    aria-current={isActive ? "page" : undefined}
                   >
                     <item.icon className="w-5 h-5" />
                     {item.name}
                   </Link>
                 )
               })}
-              <Link
-                href="/dashboard/calificaciones"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                  pathname === "/dashboard/calificaciones"
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                )}
-              >
-                <Star className="w-5 h-5" />
-                Calificaciones
-              </Link>
             </nav>
 
             {/* User Profile */}
@@ -147,9 +137,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Mobile Bottom Navigation */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg">
-        <div className="grid grid-cols-4 h-16">
+        <div className="grid grid-cols-5 h-16">
           {navigation.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = pathname.startsWith(item.href)
             return (
               <Link
                 key={item.name}
@@ -160,6 +150,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     ? "text-primary"
                     : "text-muted-foreground active:text-primary",
                 )}
+                aria-current={isActive ? "page" : undefined}
               >
                 {isActive && (
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-primary rounded-b-full" />

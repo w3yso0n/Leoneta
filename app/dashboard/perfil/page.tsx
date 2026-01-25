@@ -8,11 +8,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Car, Edit, Loader2, Mail, MapPin, Navigation, Phone, Save, Star, X } from "lucide-react"
-import { useState } from "react"
+import { Textarea } from "@/components/ui/textarea"
+import { Car, Edit, FileCheck2, Loader2, Mail, MapPin, Navigation, Phone, Save, Search, ShieldCheck, Star, X } from "lucide-react"
+import { useMemo, useState } from "react"
 
 interface Resena {
   id: string
@@ -79,8 +81,27 @@ export default function PerfilPage() {
 
   const [editedPerfil, setEditedPerfil] = useState(perfil)
   const [editedVehiculo, setEditedVehiculo] = useState(vehiculo)
+  const [preferencias, setPreferencias] = useState({
+    noFumar: true,
+    musica: true,
+    conversar: false,
+    puntualidad: true,
+  })
+  const [bio, setBio] = useState("Me gusta salir temprano y manejo con calma. Aviso si hay tráfico.")
+  const [filtroResenasTipo, setFiltroResenasTipo] = useState<"todos" | "conductor" | "pasajero">("todos")
+  const [filtroResenasTexto, setFiltroResenasTexto] = useState("")
+
+  const isPerfilValido = useMemo(() => {
+    return (
+      editedPerfil.nombre.trim() !== "" &&
+      editedPerfil.email.trim() !== "" &&
+      editedPerfil.telefono.trim() !== "" &&
+      editedPerfil.ubicacion.trim() !== ""
+    )
+  }, [editedPerfil])
 
   const handleSave = () => {
+    if (!isPerfilValido) return
     setPerfil(editedPerfil)
     setVehiculo(editedVehiculo)
     setIsEditing(false)
@@ -115,12 +136,64 @@ export default function PerfilPage() {
     )
   }
 
-  const ratingPromedio = resenasEjemplo.reduce((acc, r) => acc + r.rating, 0) / resenasEjemplo.length
+  const resenasFiltradas = useMemo(() => {
+    let lista = [...resenasEjemplo]
+    if (filtroResenasTipo !== "todos") {
+      lista = lista.filter((r) => r.tipoViaje === filtroResenasTipo)
+    }
+    if (filtroResenasTexto.trim()) {
+      const term = filtroResenasTexto.toLowerCase()
+      lista = lista.filter(
+        (r) =>
+          r.autor.toLowerCase().includes(term) ||
+          r.comentario.toLowerCase().includes(term)
+      )
+    }
+    return lista
+  }, [filtroResenasTipo, filtroResenasTexto])
+
+  const ratingPromedio = useMemo(() => {
+    if (resenasEjemplo.length === 0) return 0
+    return resenasEjemplo.reduce((acc, r) => acc + r.rating, 0) / resenasEjemplo.length
+  }, [])
+
   const totalViajes = 45
 
   return (
     <div className="space-y-4 sm:space-y-6">
       <PageHeader title="Mi perfil" />
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">Calificación</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold text-foreground">{ratingPromedio.toFixed(1)}</span>
+            <Star className="w-4 h-4 fill-accent text-accent" />
+          </div>
+          <p className="text-xs text-muted-foreground">{resenasEjemplo.length} reseñas</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">Viajes totales</p>
+          <p className="text-3xl font-bold text-foreground">{totalViajes}</p>
+          <p className="text-xs text-muted-foreground">28 como conductor · 17 como pasajero</p>
+        </Card>
+        <Card className="p-4 space-y-2">
+          <p className="text-xs text-muted-foreground">Verificación</p>
+          <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
+            <ShieldCheck className="w-4 h-4" />
+            Email UDG verificado
+          </div>
+          <p className="text-xs text-muted-foreground">Teléfono pendiente de confirmar</p>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary" className="text-[11px]">INE requerido</Badge>
+            <Badge variant="secondary" className="text-[11px]">Comprobante estudios</Badge>
+          </div>
+          <Button size="sm" variant="outline" className="w-full justify-center" type="button">
+            <FileCheck2 className="w-4 h-4 mr-2" />
+            Verificar documentos
+          </Button>
+        </Card>
+      </div>
 
       {showSuccess && (
         <Alert className="border-accent bg-accent/10">
@@ -142,7 +215,7 @@ export default function PerfilPage() {
                 </Button>
               ) : (
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleSave} className="bg-accent hover:bg-accent/90">
+                  <Button size="sm" onClick={handleSave} className="bg-accent hover:bg-accent/90" disabled={!isPerfilValido}>
                     <Save className="w-4 h-4 mr-2" />
                     Guardar
                   </Button>
@@ -193,6 +266,18 @@ export default function PerfilPage() {
                       disabled={!isEditing}
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bio">Acerca de ti</Label>
+                  <Textarea
+                    id="bio"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    disabled={!isEditing}
+                    rows={3}
+                    className="text-sm"
+                    placeholder="Agrega una breve bio para que otros sepan cómo prefieres viajar"
+                  />
                 </div>
               </div>
             </div>
@@ -317,13 +402,39 @@ export default function PerfilPage() {
                 />
               </div>
             </div>
+            <div className="mt-4 text-xs text-muted-foreground">
+              Asegúrate de que los datos coincidan con tu tarjeta de circulación para verificación futura.
+            </div>
           </Card>
 
           {/* Reseñas */}
-          <Card className="p-6">
-            <h2 className="text-lg font-bold mb-6 text-card-foreground">Reseñas recibidas</h2>
+          <Card className="p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-card-foreground">Reseñas recibidas</h2>
+              <div className="flex flex-wrap gap-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    value={filtroResenasTexto}
+                    onChange={(e) => setFiltroResenasTexto(e.target.value)}
+                    placeholder="Buscar reseña o autor"
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <select
+                  value={filtroResenasTipo}
+                  onChange={(e) => setFiltroResenasTipo(e.target.value as any)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="todos">Todas</option>
+                  <option value="conductor">Como conductor</option>
+                  <option value="pasajero">Como pasajero</option>
+                </select>
+              </div>
+            </div>
+
             <div className="space-y-4">
-              {resenasEjemplo.map((resena) => (
+              {resenasFiltradas.map((resena) => (
                 <div key={resena.id} className="border-b border-border last:border-0 pb-4 last:pb-0">
                   <div className="flex items-start gap-3 mb-2">
                     <Avatar className="w-10 h-10">
@@ -336,7 +447,7 @@ export default function PerfilPage() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-1 gap-2">
                         <p className="font-medium text-card-foreground">{resena.autor}</p>
                         <Badge variant="secondary" className="text-xs">
                           {resena.tipoViaje === "conductor" ? "Como conductor" : "Como pasajero"}
@@ -366,6 +477,9 @@ export default function PerfilPage() {
                   </div>
                 </div>
               ))}
+              {resenasFiltradas.length === 0 && (
+                <p className="text-sm text-muted-foreground">Sin reseñas con estos filtros.</p>
+              )}
             </div>
           </Card>
         </div>
@@ -434,6 +548,45 @@ export default function PerfilPage() {
                 <span className="text-xs font-medium text-center text-card-foreground">25+ viajes</span>
               </div>
             </div>
+          </Card>
+          {/* Preferencias de viaje */}
+          <Card className="p-6 space-y-4">
+            <h2 className="text-lg font-bold text-card-foreground">Preferencias de viaje</h2>
+            <div className="space-y-3">
+              {[{
+                key: "noFumar",
+                label: "No fumar",
+                desc: "Prefiero viajes libres de humo",
+              }, {
+                key: "musica",
+                label: "Música",
+                desc: "Ok con música durante el viaje",
+              }, {
+                key: "conversar",
+                label: "Plática ligera",
+                desc: "Me gusta conversar en el camino",
+              }, {
+                key: "puntualidad",
+                label: "Puntualidad",
+                desc: "Llego 5 minutos antes",
+              }].map((pref) => (
+                <label key={pref.key} className="flex items-start gap-3 text-sm">
+                  <Checkbox
+                    checked={(preferencias as any)[pref.key]}
+                    disabled={!isEditing}
+                    onCheckedChange={(checked) => setPreferencias({ ...preferencias, [pref.key]: !!checked })}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="font-medium text-card-foreground">{pref.label}</p>
+                    <p className="text-xs text-muted-foreground">{pref.desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {!isEditing && (
+              <p className="text-xs text-muted-foreground">Activa edición para actualizar tus preferencias.</p>
+            )}
           </Card>
         </div>
       </div>

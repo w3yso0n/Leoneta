@@ -5,12 +5,16 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Car, MapPin, Clock, Users, Star, Leaf, Shield, Zap, Menu, X, Check } from "lucide-react"
+import { Car, MapPin, Clock, Users, Star, Leaf, Shield, Zap, Menu, X, Check, Sun, Moon } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { useAuth } from "@/lib/auth-context"
+import { useTheme } from "next-themes"
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { user } = useAuth()
+  const { theme, setTheme } = useTheme()
 
   return (
     <div className="min-h-screen bg-background">
@@ -48,19 +52,36 @@ export default function LandingPage() {
             >
               Seguridad
             </Link>
-              <Link href="/login">
-              <Button variant="ghost" size="sm">
-                Iniciar sesión
-              </Button>
-            </Link>
+            {user ? (
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm">Ir al dashboard</Button>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link href="/login">
+                  <Button variant="ghost" size="sm">Iniciar sesión</Button>
+                </Link>
+                <Link href="/registro">
+                  <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">Registrarse</Button>
+                </Link>
+              </div>
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Cambiar tema"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="ml-2"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
           </nav>
 
           {/* Mobile Menu */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon" className="h-9 w-9">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Abrir menú</span>
+              <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}>
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px] sm:w-[350px]">
@@ -86,11 +107,20 @@ export default function LandingPage() {
                 >
                   Seguridad
                 </Link>
-                <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button className="w-full mt-4 bg-accent hover:bg-accent/90 text-accent-foreground">
-                    Iniciar sesión
-                  </Button>
-                </Link>
+                {user ? (
+                  <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                    <Button className="w-full mt-4" variant="outline">Ir al dashboard</Button>
+                  </Link>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                      <Button className="w-full" variant="outline">Iniciar sesión</Button>
+                    </Link>
+                    <Link href="/registro" onClick={() => setMobileMenuOpen(false)}>
+                      <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">Registrarse</Button>
+                    </Link>
+                  </div>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
@@ -121,21 +151,23 @@ export default function LandingPage() {
                 sostenible.
               </p>
               <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 justify-center lg:justify-start">
-                <Link href="/login" className="w-full sm:w-auto">
+                <Link href={user ? "/dashboard" : "/registro"} className="w-full sm:w-auto">
                   <Button
                     size="lg"
                     className="w-full sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground text-sm sm:text-base px-5 sm:px-7 py-4 sm:py-5 h-auto shadow-xl hover:shadow-2xl transition-all"
                   >
-                    Comenzar ahora
+                    {user ? "Ir al dashboard" : "Comenzar ahora"}
                   </Button>
                 </Link>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="w-full sm:w-auto bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/20 text-sm sm:text-base px-5 sm:px-7 py-4 sm:py-5 h-auto backdrop-blur-sm"
-                >
-                  Ver demo
-                </Button>
+                <Link href={user ? "/dashboard" : "/login"} className="w-full sm:w-auto">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full sm:w-auto bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/20 text-sm sm:text-base px-5 sm:px-7 py-4 sm:py-5 h-auto backdrop-blur-sm"
+                  >
+                    {user ? "Ver mi cuenta" : "Iniciar sesión"}
+                  </Button>
+                </Link>
               </div>
               <p className="text-xs sm:text-sm text-primary-foreground/70 mt-3 sm:mt-5">
                 ✓ Solo para miembros de la comunidad universitaria
@@ -183,7 +215,7 @@ export default function LandingPage() {
                     height={2000}
                     className="relative w-full h-auto drop-shadow-2xl"
                     priority
-                    unoptimized
+                    sizes="(max-width: 640px) 90vw, (max-width: 1024px) 60vw, 40vw"
                   />
                 </div>
               </div>
@@ -198,24 +230,30 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12 sm:gap-14 lg:gap-16">
             <Image
               src="/dinero-ahorrado.png"
-              alt="Dinero ahorrado"
+              alt="Ilustración sobre dinero ahorrado compartiendo viajes"
               width={1200}
               height={900}
               className="w-full rounded-3xl object-contain"
+              loading="lazy"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
             <Image
               src="/contribucion-ambiental.png"
-              alt="Contribución ambiental"
+              alt="Ilustración sobre contribución ambiental de carpooling"
               width={1200}
               height={900}
               className="w-full rounded-3xl object-contain"
+              loading="lazy"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
             <Image
               src="/estudiantes-conectados.png"
-              alt="Estudiantes conectados"
+              alt="Ilustración de estudiantes conectados en la comunidad"
               width={1200}
               height={900}
               className="w-full rounded-3xl object-contain"
+              loading="lazy"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
           </div>
         </div>
@@ -433,12 +471,12 @@ export default function LandingPage() {
             <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-6 sm:mb-8 text-pretty px-4">
               Únete a miles de estudiantes que ya están ahorrando dinero y cuidando el planeta
             </p>
-            <Link href="/login" className="inline-block w-full sm:w-auto px-4 sm:px-0">
+            <Link href={user ? "/dashboard" : "/registro"} className="inline-block w-full sm:w-auto px-4 sm:px-0">
               <Button
                 size="lg"
                 className="w-full sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 h-auto"
               >
-                Registrarse
+                {user ? "Ir al dashboard" : "Registrarse"}
               </Button>
             </Link>
           </div>

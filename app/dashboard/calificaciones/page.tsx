@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Star } from "lucide-react"
-import { useState } from "react"
+import { Search, Star } from "lucide-react"
+import { useMemo, useState } from "react"
 
 interface Resena {
   id: string
@@ -66,6 +68,8 @@ const todasLasResenas: Resena[] = [
   },
 ]
 
+const MAX_COMENTARIO = 240
+
 // Viajes pendientes de calificar
 const viajesPendientes = [
   {
@@ -85,8 +89,8 @@ const viajesPendientes = [
 ]
 
 export default function CalificacionesPage() {
-  const ratingPromedio = todasLasResenas.reduce((acc, r) => acc + r.rating, 0) / todasLasResenas.length
-  
+  const [resenas, setResenas] = useState<Resena[]>(todasLasResenas)
+
   // Estados para el modal de calificación
   const [showCalificarModal, setShowCalificarModal] = useState(false)
   const [viajeSeleccionado, setViajeSeleccionado] = useState<any>(null)
@@ -95,6 +99,52 @@ export default function CalificacionesPage() {
   const [comentario, setComentario] = useState("")
   const [viajesPendientesState, setViajesPendientesState] = useState(viajesPendientes)
   const [viajesCalificados, setViajesCalificados] = useState<any[]>([])
+  const [filtroTipo, setFiltroTipo] = useState<"todos" | "conductor" | "pasajero">("todos")
+  const [filtroOrden, setFiltroOrden] = useState<"recientes" | "rating">("recientes")
+  const [busqueda, setBusqueda] = useState("")
+  const [filtroSoloCinco, setFiltroSoloCinco] = useState(false)
+
+  const ratingPromedio = useMemo(() => {
+    if (resenas.length === 0) return 0
+    return resenas.reduce((acc, r) => acc + r.rating, 0) / resenas.length
+  }, [resenas])
+
+  const distribucion = useMemo(() => {
+    return [5, 4, 3, 2, 1].map((estrella) => ({
+      estrella,
+      cantidad: resenas.filter((r) => r.rating === estrella).length,
+    }))
+  }, [resenas])
+
+  const resenasFiltradas = useMemo(() => {
+    let lista = [...resenas]
+
+    if (filtroTipo !== "todos") {
+      lista = lista.filter((r) => r.tipoViaje === filtroTipo)
+    }
+
+    if (filtroSoloCinco) {
+      lista = lista.filter((r) => r.rating === 5)
+    }
+
+    if (busqueda.trim()) {
+      const term = busqueda.toLowerCase()
+      lista = lista.filter(
+        (r) =>
+          r.autor.toLowerCase().includes(term) ||
+          r.comentario.toLowerCase().includes(term) ||
+          r.ruta.toLowerCase().includes(term)
+      )
+    }
+
+    if (filtroOrden === "recientes") {
+      lista.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+    } else {
+      lista.sort((a, b) => b.rating - a.rating || new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+    }
+
+    return lista
+  }, [resenas, filtroTipo, filtroOrden, busqueda, filtroSoloCinco])
 
   const abrirModalCalificar = (viaje: any) => {
     setViajeSeleccionado(viaje)
@@ -105,19 +155,36 @@ export default function CalificacionesPage() {
   }
 
   const handleCalificar = () => {
+    if (!viajeSeleccionado || ratingSeleccionado === 0) return
+
+    const comentarioFinal = (comentario || "Sin comentarios adicionales").trim()
+
     // Crear la calificación
     const nuevaCalificacion = {
       id: `cal-${Date.now()}`,
       conductor: viajeSeleccionado.conductor,
       conductorFoto: viajeSeleccionado.conductorFoto,
       rating: ratingSeleccionado,
-      comentario: comentario || "Sin comentarios adicionales",
+      comentario: comentarioFinal,
       fecha: viajeSeleccionado.fecha,
       ruta: viajeSeleccionado.ruta,
     }
 
     // Agregar a viajes calificados
     setViajesCalificados([nuevaCalificacion, ...viajesCalificados])
+
+    // Guardar en reseñas recibidas
+    const resenaNueva: Resena = {
+      id: `res-${Date.now()}`,
+      autor: "Tú",
+      autorFoto: "/placeholder.svg?height=40&width=40",
+      rating: ratingSeleccionado,
+      comentario: comentarioFinal,
+      fecha: viajeSeleccionado.fecha,
+      tipoViaje: "pasajero",
+      ruta: viajeSeleccionado.ruta,
+    }
+    setResenas([resenaNueva, ...resenas])
 
     // Remover de pendientes
     setViajesPendientesState(
@@ -221,7 +288,7 @@ export default function CalificacionesPage() {
       )}
 
       {/* Resumen */}
-      <Card className="p-6 mb-6">
+      <Card className="p-6 mb-6 space-y-6">
         <div className="flex flex-col sm:flex-row items-center gap-6">
           <div className="text-center sm:text-left">
             <div className="flex items-center justify-center sm:justify-start gap-2 mb-2">
@@ -229,25 +296,114 @@ export default function CalificacionesPage() {
               <span className="text-5xl font-bold text-foreground">{ratingPromedio.toFixed(1)}</span>
             </div>
             <p className="text-muted-foreground">Calificación promedio</p>
+            <p className="text-xs text-muted-foreground mt-1">{resenas.length} reseñas totales</p>
           </div>
-          <div className="flex-1 grid grid-cols-2 gap-4 w-full">
+          <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-4 w-full">
             <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-foreground">{todasLasResenas.length}</div>
+              <div className="text-2xl font-bold text-foreground">{resenas.length}</div>
               <div className="text-sm text-muted-foreground">Total de reseñas</div>
             </div>
             <div className="text-center p-4 bg-muted rounded-lg">
               <div className="text-2xl font-bold text-foreground">
-                {todasLasResenas.filter((r) => r.rating === 5).length}
+                {resenas.filter((r) => r.rating === 5).length}
               </div>
               <div className="text-sm text-muted-foreground">Reseñas 5★</div>
             </div>
+            <div className="text-center p-4 bg-muted rounded-lg hidden md:block">
+              <div className="text-2xl font-bold text-foreground">
+                {resenas.filter((r) => r.tipoViaje === "conductor").length}
+              </div>
+              <div className="text-sm text-muted-foreground">Como conductor</div>
+            </div>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          {distribucion.map(({ estrella, cantidad }) => {
+            const porcentaje = resenas.length === 0 ? 0 : Math.round((cantidad / resenas.length) * 100)
+            return (
+              <div key={estrella} className="flex items-center gap-3">
+                <div className="flex items-center gap-1 w-16 text-sm text-muted-foreground">
+                  <Star className="w-4 h-4 fill-accent text-accent" />
+                  <span>{estrella}</span>
+                </div>
+                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-accent transition-all"
+                    style={{ width: `${porcentaje}%` }}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground w-10 text-right">{porcentaje}%</span>
+              </div>
+            )
+          })}
+        </div>
+      </Card>
+
+      {/* Filtros y búsqueda */}
+      <Card className="p-4 sm:p-5 mb-4 space-y-3">
+        <div className="flex flex-col lg:flex-row gap-3">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                placeholder="Buscar por nombre, ruta o comentario"
+                className="pl-9"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 w-full lg:w-auto">
+            <Select value={filtroTipo} onValueChange={(v) => setFiltroTipo(v as any)}>
+              <SelectTrigger className="w-full lg:w-40">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="conductor">Como conductor</SelectItem>
+                <SelectItem value="pasajero">Como pasajero</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filtroOrden} onValueChange={(v) => setFiltroOrden(v as any)}>
+              <SelectTrigger className="w-full lg:w-40">
+                <SelectValue placeholder="Orden" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recientes">Más recientes</SelectItem>
+                <SelectItem value="rating">Mejor rating</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={filtroSoloCinco ? "default" : "outline"}
+            onClick={() => setFiltroSoloCinco(!filtroSoloCinco)}
+          >
+            Solo 5★
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setFiltroTipo("todos")
+              setFiltroOrden("recientes")
+              setFiltroSoloCinco(false)
+              setBusqueda("")
+            }}
+          >
+            Limpiar filtros
+          </Button>
         </div>
       </Card>
 
       {/* Lista de reseñas */}
       <div className="space-y-4">
-        {todasLasResenas.map((resena) => (
+        {resenasFiltradas.map((resena) => (
           <Card key={resena.id} className="p-6">
             <div className="flex items-start gap-4">
               <Avatar className="w-12 h-12">
@@ -291,6 +447,12 @@ export default function CalificacionesPage() {
             </div>
           </Card>
         ))}
+        {resenasFiltradas.length === 0 && (
+          <Card className="p-6 text-center space-y-2">
+            <p className="font-semibold text-card-foreground">Sin resultados</p>
+            <p className="text-sm text-muted-foreground">Ajusta filtros o búsqueda para ver reseñas.</p>
+          </Card>
+        )}
       </div>
 
       {/* Modal de Calificación */}
@@ -369,10 +531,14 @@ export default function CalificacionesPage() {
                 id="comentario"
                 placeholder="Comparte más detalles sobre tu experiencia..."
                 value={comentario}
-                onChange={(e) => setComentario(e.target.value)}
+                onChange={(e) => setComentario(e.target.value.slice(0, MAX_COMENTARIO))}
                 rows={4}
                 className="resize-none"
+                maxLength={MAX_COMENTARIO}
               />
+              <p className="text-xs text-muted-foreground text-right">
+                {comentario.length}/{MAX_COMENTARIO}
+              </p>
             </div>
           </div>
 

@@ -5,28 +5,40 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth-context"
-import { Loader2, Mail, Lock, ArrowLeft, Info } from "lucide-react"
+import { Loader2, Mail, Lock, ArrowLeft, Info, Eye, EyeOff } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [remember, setRemember] = useState(true)
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, user, isLoading: authLoading } = useAuth()
+
+  // Si ya hay sesión, redirigir al dashboard
+  if (user && typeof window !== "undefined") {
+    router.replace("/dashboard")
+  }
 
   // Validar que los campos estén llenos y el email sea válido
   const isFormValid = () => {
     if (!email || !password) return false
     
     // Validar formato de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) return false
+    const emailRegex = /^[^\s@]+@([^\s@]+)$/
+    const match = email.match(emailRegex)
+    if (!match) return false
+    const domain = match[1].toLowerCase()
+    const allowedDomains = ["academicos.udg.mx", "alumnos.udg.mx"]
+    if (!allowedDomains.some((d) => domain === d)) return false
     
     // Validar que la contraseña tenga al menos 6 caracteres
     if (password.length < 6) return false
@@ -99,9 +111,13 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     className="pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || authLoading}
+                    autoComplete="username"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Usa tu correo institucional (@academicos.udg.mx o @alumnos.udg.mx)
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -110,15 +126,37 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     className="pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || authLoading}
+                    autoComplete="current-password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={remember} onCheckedChange={(c) => setRemember(!!c)} />
+                  Mantener sesión iniciada
+                </label>
+                <Link 
+                  href="#" 
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
 
               {error && (
@@ -127,7 +165,7 @@ export default function LoginPage() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading || !isFormValid()}>
+              <Button type="submit" className="w-full" disabled={isLoading || authLoading || !isFormValid()}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

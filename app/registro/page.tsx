@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -9,10 +9,14 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Mail, Lock, User, GraduationCap, Info, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Mail, Lock, User, GraduationCap, Info, CheckCircle2, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
 
 export default function RegistroPage() {
+  const router = useRouter()
+  const { register, isLoading } = useAuth()
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
@@ -20,11 +24,29 @@ export default function RegistroPage() {
     password: "",
     confirmPassword: "",
     rol: "",
+    terms: false,
   })
   
   const [emailError, setEmailError] = useState("")
   const [isEmailValid, setIsEmailValid] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  const passwordStrength = useMemo(() => {
+    const v = formData.password
+    const lengthOK = v.length >= 8
+    const upper = /[A-Z]/.test(v)
+    const lower = /[a-z]/.test(v)
+    const digit = /\d/.test(v)
+    const special = /[^A-Za-z0-9]/.test(v)
+    const score = [lengthOK, upper, lower, digit, special].filter(Boolean).length
+    if (!v) return { label: "", color: "" }
+    if (score <= 2) return { label: "Débil", color: "text-destructive" }
+    if (score === 3 || score === 4) return { label: "Media", color: "text-yellow-600" }
+    return { label: "Fuerte", color: "text-green-600" }
+  }, [formData.password])
 
   const validateEmail = (email: string) => {
     if (!email) {
@@ -59,11 +81,54 @@ export default function RegistroPage() {
       return
     }
 
-    // Simulación de registro exitoso
-    setShowSuccess(true)
-    toast.success("¡Registro exitoso!", {
-      description: `Bienvenido ${formData.nombre} ${formData.apellido}. Tu cuenta ha sido creada.`,
-      duration: 5000,
+    if (!formData.rol) {
+      toast.error("Selecciona tu rol")
+      return
+    }
+
+    const lengthOK = formData.password.length >= 8
+    const hasUpper = /[A-Z]/.test(formData.password)
+    const hasLower = /[a-z]/.test(formData.password)
+    const hasDigit = /\d/.test(formData.password)
+    if (!(lengthOK && hasUpper && hasLower && hasDigit)) {
+      toast.error("La contraseña debe tener 8+ caracteres, mayúscula, minúscula y número")
+      return
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Las contraseñas no coinciden")
+      return
+    }
+
+    if (!formData.terms) {
+      toast.error("Debes aceptar los términos y privacidad")
+      return
+    }
+    setSubmitting(true)
+    const rolValue = formData.rol as "estudiante" | "profesor"
+    register({
+      email: formData.email,
+      password: formData.password,
+      nombre: formData.nombre,
+      apellido: formData.apellido,
+      rol: rolValue,
+    }).then((ok) => {
+      if (!ok) {
+        toast.error("Este correo ya está registrado")
+        setSubmitting(false)
+        return
+      }
+      setShowSuccess(true)
+      toast.success("¡Registro exitoso!", {
+        description: `Bienvenido ${formData.nombre} ${formData.apellido}. Tu cuenta ha sido creada.`,
+        duration: 3000,
+      })
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 800)
+    }).catch(() => {
+      toast.error("Error al registrar. Intenta nuevamente")
+      setSubmitting(false)
     })
   }
 
@@ -188,7 +253,6 @@ export default function RegistroPage() {
                     <SelectContent>
                       <SelectItem value="estudiante">Estudiante</SelectItem>
                       <SelectItem value="profesor">Profesor</SelectItem>
-                      <SelectItem value="personal">Personal Administrativo</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -200,14 +264,22 @@ export default function RegistroPage() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className="pl-10"
+                    className="pl-10 pr-10"
+                    autoComplete="new-password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
                   />
+                  <button type="button" aria-label="Mostrar contraseña" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPassword((v) => !v)}>
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+                {passwordStrength.label && (
+                  <p className={`text-xs ${passwordStrength.color}`}>Seguridad: {passwordStrength.label}</p>
+                )}
+                <p className="text-xs text-muted-foreground">Mínimo 8 caracteres, incluir mayúscula, minúscula y número.</p>
               </div>
 
               <div className="space-y-2">
@@ -216,18 +288,27 @@ export default function RegistroPage() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="confirmPassword"
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className="pl-10"
+                    className="pl-10 pr-10"
+                    autoComplete="new-password"
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     required
                   />
+                  <button type="button" aria-label="Mostrar confirmación" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowConfirmPassword((v) => !v)}>
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={!isEmailValid}>
-                Crear Cuenta
+              <div className="flex items-center gap-2">
+                <input id="terms" type="checkbox" className="h-4 w-4" checked={formData.terms} onChange={(e) => setFormData({ ...formData, terms: e.target.checked })} />
+                <Label htmlFor="terms" className="text-sm text-muted-foreground">Acepto los términos de servicio y la política de privacidad</Label>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={!isEmailValid || submitting || isLoading}>
+                {submitting ? "Creando cuenta..." : "Crear Cuenta"}
               </Button>
             </form>
 
@@ -249,7 +330,7 @@ export default function RegistroPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-primary-foreground/70 mt-6">
-          Al registrarte, aceptas nuestros términos de servicio y política de privacidad
+          Al registrarte, aceptas nuestros términos de servicio y política de privacidad.
         </p>
       </div>
     </div>

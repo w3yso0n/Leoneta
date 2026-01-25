@@ -15,7 +15,8 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Clock, DollarSign, Filter, Loader2, MapPin, MapPinned, Navigation, Route, Star, Users } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { ArrowUpDown, Clock, DollarSign, Filter, Loader2, MapPin, MapPinned, Navigation, Route, Star, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 
 const CUCEI_ADDRESS = "Blvd. Gral. Marcelino García Barragán 1421, Olímpica, 44430 Guadalajara, Jal."
@@ -190,7 +191,7 @@ export default function BuscarViajePage() {
   const [chatContact, setChatContact] = useState<{ nombre: string; foto: string } | null>(null)
   const [geolocalizando, setGeolocalizando] = useState(false)
   const [errorUbicacion, setErrorUbicacion] = useState("")
-  const [fecha, setFecha] = useState("")
+  const [fecha, setFecha] = useState(() => new Date().toISOString().split("T")[0])
   const [rutaViendose, setRutaViendose] = useState<string | null>(null)
   const [origenRuta, setOrigenRuta] = useState("")
   const [destinoRuta, setDestinoRuta] = useState("")
@@ -199,6 +200,8 @@ export default function BuscarViajePage() {
   // Estados de filtros
   const [filtroGenero, setFiltroGenero] = useState<"Todos" | "Masculino" | "Femenino">("Todos")
   const [filtroPrecio, setFiltroPrecio] = useState<number | null>(null)
+  const [filtroAsientos, setFiltroAsientos] = useState(true)
+  const [orden, setOrden] = useState<"distancia" | "precio" | "hora">("distancia")
 
   // Función para geocodificación inversa
   const obtenerDireccionDesdeCoordenadas = async (lat: number, lng: number): Promise<string> => {
@@ -252,17 +255,50 @@ export default function BuscarViajePage() {
     )
   }
 
+  const convertirHoraAMinutos = (horaStr: string) => {
+    const [horas, minutos] = horaStr.split(":").map(Number)
+    return horas * 60 + (minutos || 0)
+  }
+
+  const horaEnMinutos = () => {
+    const ahora = new Date()
+    return ahora.getHours() * 60 + ahora.getMinutes()
+  }
+
+  const formatoHora = (mins: number) => {
+    const h = Math.floor(mins / 60) % 24
+    const m = mins % 60
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+  }
+
+  const setHorarioRapido = (offsetMin: number) => {
+    const minutosDestino = horaEnMinutos() + offsetMin
+    setHorario(formatoHora(minutosDestino))
+  }
+
+  const ordenarViajes = (lista: Viaje[]) => {
+    const copia = [...lista]
+    if (orden === "precio") {
+      return copia.sort((a, b) => a.precioSugerido - b.precioSugerido)
+    }
+    if (orden === "hora") {
+      return copia.sort((a, b) => convertirHoraAMinutos(a.hora) - convertirHoraAMinutos(b.hora))
+    }
+    return copia.sort((a, b) => (a.distanciaKm || Number.POSITIVE_INFINITY) - (b.distanciaKm || Number.POSITIVE_INFINITY))
+  }
+
   const buscarViajes = () => {
     // Simular búsqueda y ordenar por distancia
-    const viajesFiltrados = [...viajesEjemplo].sort((a, b) => (a.distanciaKm || 0) - (b.distanciaKm || 0))
-    setViajes(viajesFiltrados)
-    setViajesFiltrados(viajesFiltrados)
+    const viajesOrdenados = ordenarViajes([...viajesEjemplo])
+    setViajes(viajesOrdenados)
+    setViajesFiltrados(viajesOrdenados)
     setBusquedaRealizada(true)
     setOrigenRuta(miUbicacion)
     setDestinoRuta(CUCEI_ADDRESS)
     // Resetear filtros al hacer nueva búsqueda
     setFiltroGenero("Todos")
     setFiltroPrecio(null)
+    setFiltroAsientos(true)
   }
 
   // Aplicar filtros a los viajes
@@ -279,7 +315,11 @@ export default function BuscarViajePage() {
       resultado = resultado.filter(viaje => viaje.precioSugerido <= filtroPrecio)
     }
 
-    setViajesFiltrados(resultado)
+    if (filtroAsientos) {
+      resultado = resultado.filter(viaje => viaje.asientosDisponibles > 0)
+    }
+
+    setViajesFiltrados(ordenarViajes(resultado))
   }
 
   // Aplicar filtros cuando cambien
@@ -287,7 +327,7 @@ export default function BuscarViajePage() {
     if (busquedaRealizada) {
       aplicarFiltros()
     }
-  }, [filtroGenero, filtroPrecio, viajes])
+  }, [filtroGenero, filtroPrecio, filtroAsientos, orden, viajes])
 
   // Validar si el formulario está completo
   const isFormularioCompleto = () => {
@@ -420,6 +460,20 @@ export default function BuscarViajePage() {
                 className="pl-9 text-sm"
               />
             </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {[15, 30, 45, 60].map((min) => (
+                <Button
+                  key={min}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setHorarioRapido(min)}
+                  className="h-8 px-3"
+                >
+                  En {min} min
+                </Button>
+              ))}
+            </div>
           </div>
 
           {/* Fecha */}
@@ -510,6 +564,26 @@ export default function BuscarViajePage() {
       {/* Resultados */}
       {busquedaRealizada && (
         <>
+          <Card className="p-4 sm:p-5 bg-muted/40 border-dashed">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-xs sm:text-sm">
+                Desde {miUbicacionTexto || miUbicacion}
+              </Badge>
+              <Badge variant="outline" className="text-xs sm:text-sm">
+                Hasta CUCEI
+              </Badge>
+              <Badge variant="outline" className="text-xs sm:text-sm">
+                {fecha}
+              </Badge>
+              <Badge variant="outline" className="text-xs sm:text-sm">
+                {horario || "Horario no definido"}
+              </Badge>
+            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+              Ajusta filtros o cambia el orden para ver la mejor coincidencia.
+            </p>
+          </Card>
+
           {/* Filtros */}
           <Card className="p-4">
             <div className="space-y-4">
@@ -518,7 +592,7 @@ export default function BuscarViajePage() {
                 <h3 className="font-semibold text-sm">Filtros</h3>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Filtro de género */}
                 <div className="space-y-2">
                   <Label htmlFor="filtroGenero" className="text-sm">Género del conductor</Label>
@@ -552,9 +626,33 @@ export default function BuscarViajePage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                  {/* Filtro de asientos y orden */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Solo con asientos libres</Label>
+                      <Switch checked={filtroAsientos} onCheckedChange={setFiltroAsientos} />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                        <Label htmlFor="ordenarPor" className="text-sm">Ordenar por</Label>
+                      </div>
+                      <Select value={orden} onValueChange={(value) => setOrden(value as any)}>
+                        <SelectTrigger id="ordenarPor" className="text-sm">
+                          <SelectValue placeholder="Cercanía" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="distancia">Más cerca</SelectItem>
+                          <SelectItem value="precio">Más barato</SelectItem>
+                          <SelectItem value="hora">Más temprano</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
               </div>
 
-              {(filtroGenero !== "Todos" || filtroPrecio !== null) && (
+              {(filtroGenero !== "Todos" || filtroPrecio !== null || !filtroAsientos || orden !== "distancia") && (
                 <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
                   <span>Filtros activos</span>
                   <Button
@@ -563,6 +661,8 @@ export default function BuscarViajePage() {
                     onClick={() => {
                       setFiltroGenero("Todos")
                       setFiltroPrecio(null)
+                      setFiltroAsientos(true)
+                      setOrden("distancia")
                     }}
                     className="h-7 text-xs"
                   >

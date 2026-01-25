@@ -6,13 +6,14 @@ import type React from "react"
 import { MapRoute } from "@/components/dashboard/map-route"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { CheckCircle2, DollarSign, Loader2, MapPin, MapPinned, Navigation, Users } from "lucide-react"
+import { CheckCircle2, Clock, DollarSign, Loader2, MapPin, MapPinned, Navigation, Users } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
@@ -55,6 +56,49 @@ export default function PublicarViajePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [geolocalizando, setGeolocalizando] = useState(false)
+  const isEssentialComplete = (
+    formData.origen.trim() !== "" &&
+    formData.fecha !== "" &&
+    formData.hora !== "" &&
+    !!formData.precio && Number.parseFloat(formData.precio) > 0 &&
+    !!formData.asientos && Number.parseInt(formData.asientos) >= 1 && Number.parseInt(formData.asientos) <= 4
+  )
+
+  const horaEnMinutos = () => {
+    const ahora = new Date()
+    return ahora.getHours() * 60 + ahora.getMinutes()
+  }
+
+  const formatoHora = (mins: number) => {
+    const h = Math.floor(mins / 60) % 24
+    const m = mins % 60
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+  }
+
+  const setHorarioRapido = (offsetMin: number) => {
+    const minutosDestino = horaEnMinutos() + offsetMin
+    setFormData({ ...formData, hora: formatoHora(minutosDestino) })
+  }
+
+  const sugerirPrecio = (valor: number) => setFormData({ ...formData, precio: String(valor) })
+
+  const obtenerDireccionDesdeCoordenadas = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+      if (!token) return "Mi ubicación actual"
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=address,poi,neighborhood,locality`
+      )
+      const data = await response.json()
+      if (data.features && data.features.length > 0) {
+        const feature = data.features[0]
+        return feature.place_name || feature.text || "Mi ubicación actual"
+      }
+    } catch (err) {
+      // fallback
+    }
+    return "Mi ubicación actual"
+  }
 
   const obtenerUbicacionActual = () => {
     setGeolocalizando(true)
@@ -66,8 +110,10 @@ export default function PublicarViajePage() {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setFormData({ ...formData, origen: "Mi ubicación actual" })
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        const direccion = await obtenerDireccionDesdeCoordenadas(latitude, longitude)
+        setFormData({ ...formData, origen: direccion })
         setGeolocalizando(false)
       },
       (error) => {
@@ -210,6 +256,16 @@ export default function PublicarViajePage() {
               {errors.origen && <p className="text-xs text-destructive">{errors.origen}</p>}
             </div>
 
+            {/* Destino fijo */}
+            <div className="space-y-2">
+              <Label className="text-sm">Destino</Label>
+              <div className="relative">
+                <MapPinned className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+                <Input value="CUCEI" disabled className="pl-9 text-sm bg-muted/50 cursor-not-allowed" />
+              </div>
+              <p className="text-xs text-muted-foreground">Todos los rides van a CUCEI</p>
+            </div>
+
             {/* Fecha y Hora */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
@@ -238,6 +294,20 @@ export default function PublicarViajePage() {
                   className={`text-sm ${errors.hora ? "border-destructive" : ""}`}
                 />
                 {errors.hora && <p className="text-xs text-destructive">{errors.hora}</p>}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {[15, 30, 45, 60].map((min) => (
+                    <Button
+                      key={min}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setHorarioRapido(min)}
+                      className="h-8 px-3"
+                    >
+                      En {min} min
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -247,17 +317,35 @@ export default function PublicarViajePage() {
                 <Label htmlFor="asientos" className="text-sm">
                   Asientos <span className="text-destructive">*</span>
                 </Label>
-                <div className="relative">
-                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="asientos"
-                    type="number"
-                    min="1"
-                    max="4"
-                    value={formData.asientos}
-                    onChange={(e) => setFormData({ ...formData, asientos: e.target.value })}
-                    className={`pl-9 text-sm ${errors.asientos ? "border-destructive" : ""}`}
-                  />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, asientos: String(Math.max(1, Number.parseInt(formData.asientos || "1") - 1)) })}
+                  >
+                    -
+                  </Button>
+                  <div className="relative flex-1">
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="asientos"
+                      type="number"
+                      min="1"
+                      max="4"
+                      value={formData.asientos}
+                      onChange={(e) => setFormData({ ...formData, asientos: e.target.value })}
+                      className={`pl-9 text-sm ${errors.asientos ? "border-destructive" : ""}`}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, asientos: String(Math.min(4, Number.parseInt(formData.asientos || "1") + 1)) })}
+                  >
+                    +
+                  </Button>
                 </div>
                 {errors.asientos && <p className="text-xs text-destructive">{errors.asientos}</p>}
               </div>
@@ -280,6 +368,20 @@ export default function PublicarViajePage() {
                   />
                 </div>
                 {errors.precio && <p className="text-xs text-destructive">{errors.precio}</p>}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {[20, 30, 40].map((p) => (
+                    <Button
+                      key={p}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => sugerirPrecio(p)}
+                      className="h-8 px-3"
+                    >
+                      Sugerir ${p}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -309,11 +411,27 @@ export default function PublicarViajePage() {
               className="sm:h-[400px]"
             />
             <div className="p-3 sm:p-4 bg-muted/30 border-t">
-              <div className="flex items-start gap-2 text-xs sm:text-sm">
-                <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-foreground">Destino: CUCEI</p>
-                  <p className="text-muted-foreground text-xs">Blvd. Marcelino García Barragán 1421</p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2 text-xs sm:text-sm">
+                  <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-foreground">Destino: CUCEI</p>
+                    <p className="text-muted-foreground text-xs">Blvd. Marcelino García Barragán 1421</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {formData.fecha && (
+                    <Badge variant="outline" className="text-xs">{formData.fecha}</Badge>
+                  )}
+                  {formData.hora && (
+                    <Badge variant="outline" className="text-xs">{formData.hora}</Badge>
+                  )}
+                  {!!formData.asientos && (
+                    <Badge variant="outline" className="text-xs">{formData.asientos} asientos</Badge>
+                  )}
+                  {!!formData.precio && (
+                    <Badge variant="outline" className="text-xs">${formData.precio} MXN</Badge>
+                  )}
                 </div>
               </div>
             </div>
@@ -386,7 +504,7 @@ export default function PublicarViajePage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !isEssentialComplete}
             className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground text-sm sm:text-base"
           >
             {isSubmitting ? "Publicando..." : "Ofrecer viaje"}
@@ -400,6 +518,9 @@ export default function PublicarViajePage() {
             Cancelar
           </Button>
         </div>
+        {!isEssentialComplete && (
+          <p className="text-xs text-muted-foreground">Completa origen, fecha, hora, asientos y precio para publicar.</p>
+        )}
       </form>
     </div>
   )
