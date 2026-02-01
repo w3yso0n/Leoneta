@@ -1,136 +1,100 @@
-"use client"
+"use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react"
-import { useRouter } from "next/navigation"
+import { createContext, useContext, ReactNode, useMemo } from "react";
+import { SessionProvider, signIn, signOut, useSession } from "next-auth/react";
 
 export interface User {
-  id: string
-  email: string
-  nombre: string
-  apellido: string
-  rol: "estudiante" | "profesor"
-  universidad: string
-  foto?: string
+  id: string;
+  email: string;
+  nombre: string;
+  apellido: string;
+  rol: "estudiante" | "profesor";
+  universidad: string;
+  foto?: string;
 }
 
 interface AuthContextType {
-  user: User | null
-  login: (email: string, password: string) => Promise<boolean>
-  logout: () => void
-  isLoading: boolean
-  register: (payload: { email: string; password: string; nombre: string; apellido: string; rol: "estudiante" | "profesor" }) => Promise<boolean>
+  user: User | null;
+  login: (email?: string, password?: string) => Promise<boolean>;
+  logout: () => void;
+  isLoading: boolean;
+  register: (payload: {
+    email: string;
+    password: string;
+    nombre: string;
+    apellido: string;
+    rol: "estudiante" | "profesor";
+  }) => Promise<boolean>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Usuarios de prueba
-const DEMO_USERS: Array<User & { password: string }> = [
-  {
-    id: "1",
-    email: "juan.perez@academicos.udg.mx",
-    password: "demo123",
-    nombre: "Juan",
-    apellido: "Pérez",
-    rol: "estudiante",
-    universidad: "Universidad de Guadalajara",
-    foto: "/placeholder-user.jpg",
-  },
-  {
-    id: "2",
-    email: "maria.gonzalez@academicos.udg.mx",
-    password: "demo123",
-    nombre: "María",
-    apellido: "González",
-    rol: "estudiante",
-    universidad: "Universidad de Guadalajara",
-    foto: "/placeholder-user.jpg",
-  },
-  {
-    id: "3",
-    email: "carlos.martinez@academicos.udg.mx",
-    password: "demo123",
-    nombre: "Carlos",
-    apellido: "Martínez",
-    rol: "profesor",
-    universidad: "Universidad de Guadalajara",
-    foto: "/placeholder-user.jpg",
-  },
-]
+/**
+ * Adaptador interno que convierte Session (NextAuth) -> User (modelo Leoneta)
+ */
+function InnerAuthProvider({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession();
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const user: User | null = useMemo(() => {
+    if (!session?.user?.email) return null;
 
-  useEffect(() => {
-    // Verificar si hay un usuario guardado en localStorage
-    const savedUser = localStorage.getItem("leoneta_user")
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
-    }
-    setIsLoading(false)
-  }, [])
+    const email = session.user.email;
+    const name = session.user.name ?? "";
+    const [nombre = "", ...rest] = name.split(" ");
+    const apellido = rest.join(" ");
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    // Simular una llamada a API
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    const stored = localStorage.getItem("leoneta_registered_users")
-    const registered: Array<User & { password: string }> = stored ? JSON.parse(stored) : []
-    const foundDemo = DEMO_USERS.find((u) => u.email === email && u.password === password)
-    const foundRegistered = registered.find((u) => u.email === email && u.password === password)
-    const foundUser = foundDemo || foundRegistered
-    if (foundUser) {
-      const { password: _, ...userWithoutPassword } = foundUser
-      setUser(userWithoutPassword)
-      localStorage.setItem("leoneta_user", JSON.stringify(userWithoutPassword))
-      return true
-    }
-    return false
-  }
+    // TODO: ajustar rol/universidad cuando exista backend
+    return {
+      id: email, // temporal: usar email como id hasta tener DB
+      email,
+      nombre,
+      apellido,
+      rol: "estudiante",
+      universidad: "Universidad de Guadalajara",
+      foto: session.user.image ?? undefined,
+    };
+  }, [session]);
+
+  const isLoading = status === "loading";
+
+  const login = async (): Promise<boolean> => {
+    // Redirige a OAuth Google. Si quieres, puedes pasar callbackUrl.
+    await signIn("google", { callbackUrl: "/" });
+    // signIn redirige; si no redirige, asumimos false
+    return true;
+  };
 
   const logout = () => {
-    setUser(null)
-    localStorage.removeItem("leoneta_user")
-  }
+    signOut({ callbackUrl: "/" });
+  };
 
-  const register = async (payload: { email: string; password: string; nombre: string; apellido: string; rol: "estudiante" | "profesor" }): Promise<boolean> => {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    const stored = localStorage.getItem("leoneta_registered_users")
-    const registered: Array<User & { password: string }> = stored ? JSON.parse(stored) : []
-    const existsInDemo = DEMO_USERS.some((u) => u.email === payload.email)
-    const existsInRegistered = registered.some((u) => u.email === payload.email)
-    if (existsInDemo || existsInRegistered) {
-      return false
-    }
-    const newUser: User & { password: string } = {
-      id: String(Date.now()),
-      email: payload.email,
-      password: payload.password,
-      nombre: payload.nombre,
-      apellido: payload.apellido,
-      rol: payload.rol,
-      universidad: "Universidad de Guadalajara",
-      foto: "/placeholder-user.jpg",
-    }
-    const updated = [...registered, newUser]
-    localStorage.setItem("leoneta_registered_users", JSON.stringify(updated))
-    const { password: _, ...userWithoutPassword } = newUser
-    setUser(userWithoutPassword)
-    localStorage.setItem("leoneta_user", JSON.stringify(userWithoutPassword))
-    return true
-  }
+  const register = async (): Promise<boolean> => {
+    // Con Google OAuth, el "registro" real se hace cuando exista backend.
+    // Por ahora: puedes retornar false o true según tu UX.
+    // Recomendación: true y mandar a signIn("google")
+    await signIn("google", { callbackUrl: "/" });
+    return true;
+  };
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading, register }}>
       {children}
     </AuthContext.Provider>
-  )
+  );
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return (
+    <SessionProvider>
+      <InnerAuthProvider>{children}</InnerAuthProvider>
+    </SessionProvider>
+  );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth debe ser usado dentro de un AuthProvider")
+    throw new Error("useAuth debe ser usado dentro de un AuthProvider");
   }
-  return context
+  return context;
 }
-
