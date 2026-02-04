@@ -14,7 +14,9 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Car, Edit, FileCheck2, Loader2, Mail, MapPin, Navigation, Phone, Save, Search, ShieldCheck, Star, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
+import { toast } from "sonner"
 
 interface Resena {
   id: string
@@ -57,19 +59,51 @@ const resenasEjemplo: Resena[] = [
 ]
 
 export default function PerfilPage() {
+  const { data: session, status } = useSession()
   const [isEditing, setIsEditing] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [geolocalizando, setGeolocalizando] = useState(false)
+  const [loading, setLoading] = useState(false)
+  
+  // Cargar datos desde la sesión
   const [perfil, setPerfil] = useState({
-    nombre: "Juan Pérez",
-    email: "juan.perez@alumnos.udg.mx",
-    telefono: "+52 33 1234 5678",
-    carrera: "Ingeniería en Sistemas",
-    departamento: "CUCEI",
-    ubicacion: "Av. Patria 1500, Zapopan, Jalisco",
-    colonia: "Jardines Universidad",
-    foto: "/placeholder.svg?height=120&width=120",
+    nombre: "",
+    email: "",
+    telefono: "",
+    carrera: "",
+    departamento: "CUCEI", // Por ahora estático
+    ubicacion: "",
+    colonia: "",
+    foto: "",
   })
+
+  // Cargar datos del usuario cuando la sesión esté lista
+  useEffect(() => {
+    if (session?.user) {
+      const user = session.user as any
+      setPerfil({
+        nombre: user.nombre || user.name || "",
+        email: user.email || "",
+        telefono: user.telefono || "",
+        carrera: user.carrera || "",
+        departamento: "CUCEI", // Por ahora estático
+        ubicacion: user.direccion || "",
+        colonia: "",
+        foto: user.foto || user.image || "",
+      })
+      setEditedPerfil({
+        nombre: user.nombre || user.name || "",
+        email: user.email || "",
+        telefono: user.telefono || "",
+        carrera: user.carrera || "",
+        departamento: "CUCEI",
+        ubicacion: user.direccion || "",
+        colonia: "",
+        foto: user.foto || user.image || "",
+      })
+      setBio(user.acerca_de || "")
+    }
+  }, [session])
 
   const [vehiculo, setVehiculo] = useState({
     marca: "Toyota",
@@ -100,13 +134,42 @@ export default function PerfilPage() {
     )
   }, [editedPerfil])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isPerfilValido) return
-    setPerfil(editedPerfil)
-    setVehiculo(editedVehiculo)
-    setIsEditing(false)
-    setShowSuccess(true)
-    setTimeout(() => setShowSuccess(false), 3000)
+    
+    setLoading(true)
+    
+    try {
+      // Actualizar en la base de datos
+      const response = await fetch("/api/usuarios/actualizar-perfil", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: session?.user?.email,
+          nombre: editedPerfil.nombre,
+          telefono: editedPerfil.telefono,
+          carrera: editedPerfil.carrera,
+          direccion: editedPerfil.ubicacion,
+          acerca_de: bio,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Error al actualizar perfil")
+      }
+
+      setPerfil(editedPerfil)
+      setVehiculo(editedVehiculo)
+      setIsEditing(false)
+      setShowSuccess(true)
+      toast.success("Perfil actualizado exitosamente")
+      setTimeout(() => setShowSuccess(false), 3000)
+    } catch (error) {
+      console.error("Error:", error)
+      toast.error("Error al actualizar el perfil")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCancel = () => {
@@ -158,6 +221,15 @@ export default function PerfilPage() {
   }, [])
 
   const totalViajes = 45
+
+  // Mostrar loading si no hay sesión aún
+  if (status === "loading" || !session) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -215,11 +287,15 @@ export default function PerfilPage() {
                 </Button>
               ) : (
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleSave} className="bg-accent hover:bg-accent/90" disabled={!isPerfilValido}>
-                    <Save className="w-4 h-4 mr-2" />
+                  <Button size="sm" onClick={handleSave} className="bg-accent hover:bg-accent/90" disabled={!isPerfilValido || loading}>
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
                     Guardar
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleCancel}>
+                  <Button variant="outline" size="sm" onClick={handleCancel} disabled={loading}>
                     <X className="w-4 h-4 mr-2" />
                     Cancelar
                   </Button>
@@ -242,28 +318,30 @@ export default function PerfilPage() {
                   <Label htmlFor="nombre">Nombre completo</Label>
                   <Input
                     id="nombre"
-                    value={isEditing ? editedPerfil.nombre : perfil.nombre}
-                    onChange={(e) => setEditedPerfil({ ...editedPerfil, nombre: e.target.value })}
-                    disabled={!isEditing}
+                    value={perfil.nombre}
+                    disabled={true}
+                    className="bg-muted/50 cursor-not-allowed"
                   />
+                  <p className="text-xs text-muted-foreground">El nombre no puede ser modificado</p>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="carrera">Carrera</Label>
                     <Input
                       id="carrera"
-                      value={isEditing ? editedPerfil.carrera : perfil.carrera}
-                      onChange={(e) => setEditedPerfil({ ...editedPerfil, carrera: e.target.value })}
-                      disabled={!isEditing}
+                      value={perfil.carrera}
+                      disabled={true}
+                      className="bg-muted/50 cursor-not-allowed"
                     />
+                    <p className="text-xs text-muted-foreground">La carrera no puede ser modificada</p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="departamento">Departamento</Label>
+                    <Label htmlFor="escuela">Escuela</Label>
                     <Input
-                      id="departamento"
-                      value={isEditing ? editedPerfil.departamento : perfil.departamento}
-                      onChange={(e) => setEditedPerfil({ ...editedPerfil, departamento: e.target.value })}
-                      disabled={!isEditing}
+                      id="escuela"
+                      value={perfil.departamento}
+                      disabled={true}
+                      className="bg-muted/50 cursor-not-allowed"
                     />
                   </div>
                 </div>
