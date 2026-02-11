@@ -1,7 +1,22 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useMemo } from "react";
-import { SessionProvider, signIn, signOut, useSession } from "next-auth/react";
+import {
+  createContext,
+  useContext,
+  ReactNode,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import {
+  authApi,
+  usersApi,
+  setTokens,
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  type ApiUser,
+} from "./api";
 
 export interface User {
   id: string;
@@ -11,11 +26,23 @@ export interface User {
   rol: "estudiante" | "profesor";
   universidad: string;
   foto?: string;
+  registroCompleto: boolean;
+  telefono?: string;
+  carrera?: string;
+  direccion?: string;
+  acercaDe?: string;
+  codigoEstudiante?: string;
+  centroUniversitario?: string;
+  genero?: string;
+  ratingPromedio?: number;
+  totalViajesConductor?: number;
+  totalViajesPasajero?: number;
+  totalCalificaciones?: number;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (email?: string, password?: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
   register: (payload: {
@@ -25,69 +52,150 @@ interface AuthContextType {
     apellido: string;
     rol: "estudiante" | "profesor";
   }) => Promise<boolean>;
+  loginWithGoogle: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/**
- * Adaptador interno que convierte Session (NextAuth) -> User (modelo Leoneta)
- */
-function InnerAuthProvider({ children }: { children: ReactNode }) {
-  const { data: session, status } = useSession();
-
-  const user: User | null = useMemo(() => {
-    if (!session?.user?.email) return null;
-
-    const email = session.user.email;
-    const name = session.user.name ?? "";
-    const [nombre = "", ...rest] = name.split(" ");
-    const apellido = rest.join(" ");
-
-    // TODO: ajustar rol/universidad cuando exista backend
-    return {
-      id: email, // temporal: usar email como id hasta tener DB
-      email,
-      nombre,
-      apellido,
-      rol: "estudiante",
-      universidad: "Universidad de Guadalajara",
-      foto: session.user.image ?? undefined,
-    };
-  }, [session]);
-
-  const isLoading = status === "loading";
-
-  const login = async (): Promise<boolean> => {
-    // Redirige a OAuth Google. Si quieres, puedes pasar callbackUrl.
-    await signIn("google", { callbackUrl: "/" });
-    // signIn redirige; si no redirige, asumimos false
-    return true;
+function mapApiUser(u: ApiUser): User {
+  return {
+    id: u.id,
+    email: u.email,
+    nombre: u.nombre,
+    apellido: u.apellido || "",
+    rol: (u.rol as "estudiante" | "profesor") || "estudiante",
+    universidad: u.centroUniversitario || "Universidad de Guadalajara",
+    foto: u.fotoUrl,
+    registroCompleto: u.registroCompleto,
+    telefono: u.telefono,
+    carrera: u.carrera,
+    direccion: u.direccion,
+    acercaDe: u.acercaDe,
+    codigoEstudiante: u.codigoEstudiante,
+    centroUniversitario: u.centroUniversitario,
+    genero: u.genero,
+    ratingPromedio: u.ratingPromedio,
+    totalViajesConductor: u.totalViajesConductor,
+    totalViajesPasajero: u.totalViajesPasajero,
+    totalCalificaciones: u.totalCalificaciones,
   };
-
-  const logout = () => {
-    signOut({ callbackUrl: "/" });
-  };
-
-  const register = async (): Promise<boolean> => {
-    // Con Google OAuth, el "registro" real se hace cuando exista backend.
-    // Por ahora: puedes retornar false o true según tu UX.
-    // Recomendación: true y mandar a signIn("google")
-    await signIn("google", { callbackUrl: "/" });
-    return true;
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading, register }}>
-      {children}
-    </AuthContext.Provider>
-  );
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load user from stored token on mount
+  const loadUser = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const apiUser = await authApi.me();
+      setUser(mapApiUser(apiUser));
+    } catch {
+      clearTokens();
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const res = await authApi.login(email, password);
+      setTokens(res.tokens.accessToken, res.tokens.refreshToken);
+      setUser(mapApiUser(res.user));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const register = async (payload: {
+    email: string;
+    password: string;
+    nombre: string;
+    apellido: string;
+    rol: "estudiante" | "profesor";
+  }): Promise<boolean> => {
+    try {
+      const res = await authApi.register({
+        email: payload.email,
+        password: payload.password,
+        nombre: payload.nombre,
+        apellido: payload.apellido,
+        rol: payload.rol,
+      });
+      setTokens(res.tokens.accessToken, res.tokens.refreshToken);
+      setUser(mapApiUser(res.user));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const refreshToken = getRefreshToken();
+      await authApi.logout(refreshToken || undefined);
+    } catch {
+      // Ignore errors on logout
+    } finally {
+      clearTokens();
+      setUser(null);
+    }
+  };
+
+  const loginWithGoogle = () => {
+    // Redirect to backend Google OAuth endpoint
+    window.location.href = authApi.getGoogleUrl();
+  };
+
+  const refreshUser = async () => {
+    try {
+      const apiUser = await authApi.me();
+      setUser(mapApiUser(apiUser));
+    } catch {
+      // silently fail 
+    }
+  };
+
+  // Handle OAuth callback tokens from URL (for Google OAuth redirect)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const accessToken = params.get("accessToken");
+    const refreshToken = params.get("refreshToken");
+
+    if (accessToken && refreshToken) {
+      setTokens(accessToken, refreshToken);
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("accessToken");
+      url.searchParams.delete("refreshToken");
+      url.searchParams.delete("registroCompleto");
+      window.history.replaceState({}, "", url.pathname);
+      // Load user with new tokens
+      loadUser();
+    }
+  }, [loadUser]);
+
   return (
-    <SessionProvider>
-      <InnerAuthProvider>{children}</InnerAuthProvider>
-    </SessionProvider>
+    <AuthContext.Provider
+      value={{ user, login, logout, isLoading, register, loginWithGoogle, refreshUser }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 }
 

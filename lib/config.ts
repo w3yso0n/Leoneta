@@ -1,8 +1,8 @@
 // Configuración centralizada para variables de entorno
 export const config = {
-  // Backend API
-  apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
-  appUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001',
+  // Backend API (NestJS en puerto 3001 con prefijo /api)
+  apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
+  appUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
   
   // Mapbox (para geocoding)
   mapbox: {

@@ -1,58 +1,30 @@
-import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const pathname = req.nextUrl.pathname;
+const publicRoutes = ["/", "/login", "/registro", "/auth/callback"];
 
-    // Rutas públicas que no requieren autenticación
-    const publicRoutes = ["/", "/login", "/registro"];
-    if (publicRoutes.includes(pathname)) {
-      return NextResponse.next();
-    }
+export function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
 
-    // Si está en /registro/completar, permitir
-    if (pathname === "/registro/completar") {
-      return NextResponse.next();
-    }
-
-    // Si el usuario no completó su registro y no está en la página de completar
-    if (token && token.registro_completo === false) {
-      const url = new URL("/registro/completar", req.url);
-      return NextResponse.redirect(url);
-    }
-
+  // Public routes — always allow
+  if (publicRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
     return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        const pathname = req.nextUrl.pathname;
-        
-        // Rutas públicas siempre permitidas
-        const publicRoutes = ["/", "/login", "/registro", "/registro/completar"];
-        if (publicRoutes.includes(pathname)) {
-          return true;
-        }
-
-        // Para rutas protegidas, requiere token
-        return !!token;
-      },
-    },
   }
-);
+
+  // Allow /registro/completar
+  if (pathname === "/registro/completar") {
+    return NextResponse.next();
+  }
+
+  // For protected routes, check for token in localStorage is not possible in middleware,
+  // so we rely on the client-side AuthGuard component for redirection.
+  // The middleware just lets requests through — the AuthGuard in dashboard/layout.tsx
+  // will redirect unauthenticated users to /login.
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     "/((?!api|_next/static|_next/image|favicon.ico|logos|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$).*)",
   ],
 };

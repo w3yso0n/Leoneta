@@ -13,153 +13,119 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { Car, Edit, FileCheck2, Loader2, Mail, MapPin, Navigation, Phone, Save, Search, ShieldCheck, Star, X } from "lucide-react"
-import { useMemo, useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { Car, Edit, FileCheck2, Loader2, Mail, MapPin, Navigation, Phone, Save, ShieldCheck, Star, X } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useAuth } from "@/lib/auth-context"
+import { usersApi, vehiclesApi, type ApiVehicle } from "@/lib/api"
 import { toast } from "sonner"
 
-interface Resena {
-  id: string
-  autor: string
-  autorFoto: string
-  rating: number
-  comentario: string
-  fecha: string
-  tipoViaje: "conductor" | "pasajero"
-}
-
-const resenasEjemplo: Resena[] = [
-  {
-    id: "1",
-    autor: "María González",
-    autorFoto: "/placeholder.svg?height=40&width=40",
-    rating: 5,
-    comentario: "Excelente conductor, muy puntual y amable. El viaje fue muy cómodo y seguro.",
-    fecha: "2025-01-10",
-    tipoViaje: "conductor",
-  },
-  {
-    id: "2",
-    autor: "Carlos Ramírez",
-    autorFoto: "/placeholder.svg?height=40&width=40",
-    rating: 5,
-    comentario: "Muy buen pasajero, respetuoso y puntual. Recomendado 100%.",
-    fecha: "2025-01-08",
-    tipoViaje: "pasajero",
-  },
-  {
-    id: "3",
-    autor: "Ana Martínez",
-    autorFoto: "/placeholder.svg?height=40&width=40",
-    rating: 4,
-    comentario: "Buen conductor, solo hubo un pequeño retraso pero avisó con tiempo.",
-    fecha: "2025-01-05",
-    tipoViaje: "conductor",
-  },
-]
-
 export default function PerfilPage() {
-  const { data: session, status } = useSession()
+  const { user, isLoading: authLoading, refreshUser } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [geolocalizando, setGeolocalizando] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [vehicles, setVehicles] = useState<ApiVehicle[]>([])
+  const [loadingVehicles, setLoadingVehicles] = useState(true)
   
-  // Cargar datos desde la sesión
+  // Cargar datos desde el contexto de auth
   const [perfil, setPerfil] = useState({
     nombre: "",
     email: "",
     telefono: "",
     carrera: "",
-    departamento: "CUCEI", // Por ahora estático
+    departamento: "CUCEI",
     ubicacion: "",
     colonia: "",
     foto: "",
   })
 
-  // Cargar datos del usuario cuando la sesión esté lista
+  // Cargar datos del usuario cuando esté listo
   useEffect(() => {
-    if (session?.user) {
-      const user = session.user as any
+    if (user) {
       setPerfil({
-        nombre: user.nombre || user.name || "",
+        nombre: `${user.nombre} ${user.apellido}`.trim(),
         email: user.email || "",
         telefono: user.telefono || "",
         carrera: user.carrera || "",
-        departamento: "CUCEI", // Por ahora estático
+        departamento: user.centroUniversitario || "CUCEI",
         ubicacion: user.direccion || "",
         colonia: "",
-        foto: user.foto || user.image || "",
+        foto: user.foto || "",
       })
       setEditedPerfil({
-        nombre: user.nombre || user.name || "",
+        nombre: `${user.nombre} ${user.apellido}`.trim(),
         email: user.email || "",
         telefono: user.telefono || "",
         carrera: user.carrera || "",
-        departamento: "CUCEI",
+        departamento: user.centroUniversitario || "CUCEI",
         ubicacion: user.direccion || "",
         colonia: "",
-        foto: user.foto || user.image || "",
+        foto: user.foto || "",
       })
-      setBio(user.acerca_de || "")
+      setBio(user.acercaDe || "")
     }
-  }, [session])
+  }, [user])
 
-  const [vehiculo, setVehiculo] = useState({
-    marca: "Toyota",
-    modelo: "Corolla",
-    año: "2020",
-    color: "Gris",
-    placas: "ABC-123-D",
-  })
+  // Cargar vehículos reales
+  useEffect(() => {
+    async function loadVehicles() {
+      setLoadingVehicles(true)
+      try {
+        const all = await vehiclesApi.getMyVehicles()
+        setVehicles(all.filter((v) => v.estado === "activo"))
+      } catch {
+        setVehicles([])
+      } finally {
+        setLoadingVehicles(false)
+      }
+    }
+    loadVehicles()
+  }, [])
 
   const [editedPerfil, setEditedPerfil] = useState(perfil)
-  const [editedVehiculo, setEditedVehiculo] = useState(vehiculo)
   const [preferencias, setPreferencias] = useState({
     noFumar: true,
     musica: true,
     conversar: false,
     puntualidad: true,
   })
-  const [bio, setBio] = useState("Me gusta salir temprano y manejo con calma. Aviso si hay tráfico.")
-  const [filtroResenasTipo, setFiltroResenasTipo] = useState<"todos" | "conductor" | "pasajero">("todos")
-  const [filtroResenasTexto, setFiltroResenasTexto] = useState("")
+  const [bio, setBio] = useState("")
 
-  const isPerfilValido = useMemo(() => {
-    return (
-      editedPerfil.nombre.trim() !== "" &&
-      editedPerfil.email.trim() !== "" &&
-      editedPerfil.telefono.trim() !== "" &&
-      editedPerfil.ubicacion.trim() !== ""
-    )
-  }, [editedPerfil])
+  const isPerfilValido =
+    editedPerfil.nombre.trim() !== "" &&
+    editedPerfil.email.trim() !== "" &&
+    editedPerfil.telefono.trim() !== "" &&
+    editedPerfil.ubicacion.trim() !== ""
+
+  // Stats reales del usuario
+  const ratingPromedio = user?.ratingPromedio ?? 0
+  const totalViajesConductor = user?.totalViajesConductor ?? 0
+  const totalViajesPasajero = user?.totalViajesPasajero ?? 0
+  const totalViajes = totalViajesConductor + totalViajesPasajero
+  const miembroDesde = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString("es-MX", { month: "long", year: "numeric" })
+    : "—"
 
   const handleSave = async () => {
-    if (!isPerfilValido) return
+    if (!isPerfilValido || !user) return
     
     setLoading(true)
     
     try {
-      // Actualizar en la base de datos
-      const response = await fetch("/api/usuarios/actualizar-perfil", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: session?.user?.email,
-          nombre: editedPerfil.nombre,
-          telefono: editedPerfil.telefono,
-          carrera: editedPerfil.carrera,
-          direccion: editedPerfil.ubicacion,
-          acerca_de: bio,
-        }),
+      await usersApi.updateProfile(user.id, {
+        nombre: editedPerfil.nombre.split(" ")[0],
+        apellido: editedPerfil.nombre.split(" ").slice(1).join(" "),
+        telefono: editedPerfil.telefono,
+        carrera: editedPerfil.carrera,
+        direccion: editedPerfil.ubicacion,
+        acercaDe: bio,
       })
 
-      if (!response.ok) {
-        throw new Error("Error al actualizar perfil")
-      }
+      // Refrescar datos del usuario en contexto
+      await refreshUser()
 
       setPerfil(editedPerfil)
-      setVehiculo(editedVehiculo)
       setIsEditing(false)
       setShowSuccess(true)
       toast.success("Perfil actualizado exitosamente")
@@ -174,7 +140,6 @@ export default function PerfilPage() {
 
   const handleCancel = () => {
     setEditedPerfil(perfil)
-    setEditedVehiculo(vehiculo)
     setIsEditing(false)
   }
 
@@ -199,31 +164,8 @@ export default function PerfilPage() {
     )
   }
 
-  const resenasFiltradas = useMemo(() => {
-    let lista = [...resenasEjemplo]
-    if (filtroResenasTipo !== "todos") {
-      lista = lista.filter((r) => r.tipoViaje === filtroResenasTipo)
-    }
-    if (filtroResenasTexto.trim()) {
-      const term = filtroResenasTexto.toLowerCase()
-      lista = lista.filter(
-        (r) =>
-          r.autor.toLowerCase().includes(term) ||
-          r.comentario.toLowerCase().includes(term)
-      )
-    }
-    return lista
-  }, [filtroResenasTipo, filtroResenasTexto])
-
-  const ratingPromedio = useMemo(() => {
-    if (resenasEjemplo.length === 0) return 0
-    return resenasEjemplo.reduce((acc, r) => acc + r.rating, 0) / resenasEjemplo.length
-  }, [])
-
-  const totalViajes = 45
-
-  // Mostrar loading si no hay sesión aún
-  if (status === "loading" || !session) {
+  // Mostrar loading si no hay usuario aún
+  if (authLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -242,12 +184,12 @@ export default function PerfilPage() {
             <span className="text-3xl font-bold text-foreground">{ratingPromedio.toFixed(1)}</span>
             <Star className="w-4 h-4 fill-accent text-accent" />
           </div>
-          <p className="text-xs text-muted-foreground">{resenasEjemplo.length} reseñas</p>
+          <p className="text-xs text-muted-foreground">{user.totalCalificaciones ?? 0} calificaciones</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-muted-foreground">Viajes totales</p>
           <p className="text-3xl font-bold text-foreground">{totalViajes}</p>
-          <p className="text-xs text-muted-foreground">28 como conductor · 17 como pasajero</p>
+          <p className="text-xs text-muted-foreground">{totalViajesConductor} como conductor · {totalViajesPasajero} como pasajero</p>
         </Card>
         <Card className="p-4 space-y-2">
           <p className="text-xs text-muted-foreground">Verificación</p>
@@ -424,141 +366,49 @@ export default function PerfilPage() {
             </div>
           </Card>
 
-          {/* Información del vehículo */}
+          {/* Vehículos */}
           <Card className="p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                 <Car className="w-5 h-5 text-primary" />
               </div>
-              <h2 className="text-lg font-bold text-card-foreground">Información del vehículo</h2>
+              <h2 className="text-lg font-bold text-card-foreground">Mis vehículos</h2>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="marca">Marca</Label>
-                <Input
-                  id="marca"
-                  value={isEditing ? editedVehiculo.marca : vehiculo.marca}
-                  onChange={(e) => setEditedVehiculo({ ...editedVehiculo, marca: e.target.value })}
-                  disabled={!isEditing}
-                />
+            {loadingVehicles ? (
+              <div className="flex items-center justify-center py-6 gap-2">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Cargando vehículos...</span>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="modelo">Modelo</Label>
-                <Input
-                  id="modelo"
-                  value={isEditing ? editedVehiculo.modelo : vehiculo.modelo}
-                  onChange={(e) => setEditedVehiculo({ ...editedVehiculo, modelo: e.target.value })}
-                  disabled={!isEditing}
-                />
+            ) : vehicles.length === 0 ? (
+              <div className="text-center py-6">
+                <Car className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground mb-3">No tienes vehículos registrados</p>
+                <Button variant="outline" size="sm" onClick={() => window.location.href = "/dashboard/publicar"}>
+                  Registrar vehículo
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="año">Año</Label>
-                <Input
-                  id="año"
-                  value={isEditing ? editedVehiculo.año : vehiculo.año}
-                  onChange={(e) => setEditedVehiculo({ ...editedVehiculo, año: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="color">Color</Label>
-                <Input
-                  id="color"
-                  value={isEditing ? editedVehiculo.color : vehiculo.color}
-                  onChange={(e) => setEditedVehiculo({ ...editedVehiculo, color: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="placas">Placas</Label>
-                <Input
-                  id="placas"
-                  value={isEditing ? editedVehiculo.placas : vehiculo.placas}
-                  onChange={(e) => setEditedVehiculo({ ...editedVehiculo, placas: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-            </div>
-            <div className="mt-4 text-xs text-muted-foreground">
-              Asegúrate de que los datos coincidan con tu tarjeta de circulación para verificación futura.
-            </div>
-          </Card>
-
-          {/* Reseñas */}
-          <Card className="p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-card-foreground">Reseñas recibidas</h2>
-              <div className="flex flex-wrap gap-2">
-                <div className="relative">
-                  <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                  <Input
-                    value={filtroResenasTexto}
-                    onChange={(e) => setFiltroResenasTexto(e.target.value)}
-                    placeholder="Buscar reseña o autor"
-                    className="pl-9 h-9"
-                  />
-                </div>
-                <select
-                  value={filtroResenasTipo}
-                  onChange={(e) => setFiltroResenasTipo(e.target.value as any)}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="todos">Todas</option>
-                  <option value="conductor">Como conductor</option>
-                  <option value="pasajero">Como pasajero</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {resenasFiltradas.map((resena) => (
-                <div key={resena.id} className="border-b border-border last:border-0 pb-4 last:pb-0">
-                  <div className="flex items-start gap-3 mb-2">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={resena.autorFoto || "/placeholder.svg"} />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                        {resena.autor
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </AvatarFallback>
-                    </Avatar>
+            ) : (
+              <div className="space-y-3">
+                {vehicles.map((v) => (
+                  <div key={v.id} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <Car className="w-5 h-5 text-primary flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1 gap-2">
-                        <p className="font-medium text-card-foreground">{resena.autor}</p>
-                        <Badge variant="secondary" className="text-xs">
-                          {resena.tipoViaje === "conductor" ? "Como conductor" : "Como pasajero"}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="flex">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`w-4 h-4 ${
-                                i < resena.rating ? "fill-accent text-accent" : "text-muted-foreground"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(resena.fecha).toLocaleDateString("es-MX", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{resena.comentario}</p>
+                      <p className="text-sm font-medium text-card-foreground">
+                        {v.marca} {v.modelo} ({v.anio})
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {v.color} · {v.capacidadPasajeros} pasajeros
+                        {v.placas ? ` · ${v.placas}` : ""}
+                      </p>
                     </div>
+                    {v.esPrincipal && (
+                      <Badge variant="secondary" className="text-xs">Principal</Badge>
+                    )}
                   </div>
-                </div>
-              ))}
-              {resenasFiltradas.length === 0 && (
-                <p className="text-sm text-muted-foreground">Sin reseñas con estos filtros.</p>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
 
@@ -574,7 +424,7 @@ export default function PerfilPage() {
                   <span className="text-4xl font-bold text-foreground">{ratingPromedio.toFixed(1)}</span>
                 </div>
                 <p className="text-sm text-muted-foreground">Calificación promedio</p>
-                <p className="text-xs text-muted-foreground mt-1">{resenasEjemplo.length} reseñas</p>
+                <p className="text-xs text-muted-foreground mt-1">{user?.totalCalificaciones ?? 0} calificaciones</p>
               </div>
 
               <Separator />
@@ -586,11 +436,11 @@ export default function PerfilPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Como conductor</span>
-                  <span className="text-lg font-semibold text-foreground">28</span>
+                  <span className="text-lg font-semibold text-foreground">{totalViajesConductor}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Como pasajero</span>
-                  <span className="text-lg font-semibold text-foreground">17</span>
+                  <span className="text-lg font-semibold text-foreground">{totalViajesPasajero}</span>
                 </div>
               </div>
 
@@ -599,34 +449,36 @@ export default function PerfilPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Miembro desde</span>
-                  <span className="font-medium text-foreground">Enero 2024</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Última actividad</span>
-                  <span className="font-medium text-foreground">Hace 2 días</span>
+                  <span className="font-medium text-foreground capitalize">{miembroDesde}</span>
                 </div>
               </div>
             </div>
           </Card>
 
           {/* Insignias */}
+          {(ratingPromedio >= 4.5 || totalViajes >= 10) && (
           <Card className="p-6">
             <h2 className="text-lg font-bold mb-4 text-card-foreground">Insignias</h2>
             <div className="grid grid-cols-2 gap-3">
+              {ratingPromedio >= 4.5 && (
               <div className="flex flex-col items-center p-3 bg-accent/10 rounded-lg">
                 <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center mb-2">
                   <Star className="w-6 h-6 text-accent-foreground" />
                 </div>
-                <span className="text-xs font-medium text-center text-card-foreground">Conductor 5★</span>
+                <span className="text-xs font-medium text-center text-card-foreground">Top rating</span>
               </div>
+              )}
+              {totalViajes >= 10 && (
               <div className="flex flex-col items-center p-3 bg-primary/10 rounded-lg">
                 <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mb-2">
                   <Car className="w-6 h-6 text-primary-foreground" />
                 </div>
-                <span className="text-xs font-medium text-center text-card-foreground">25+ viajes</span>
+                <span className="text-xs font-medium text-center text-card-foreground">{totalViajes}+ viajes</span>
               </div>
+              )}
             </div>
           </Card>
+          )}
           {/* Preferencias de viaje */}
           <Card className="p-6 space-y-4">
             <h2 className="text-lg font-bold text-card-foreground">Preferencias de viaje</h2>

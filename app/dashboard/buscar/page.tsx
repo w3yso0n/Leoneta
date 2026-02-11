@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { ArrowUpDown, Clock, DollarSign, Filter, Loader2, MapPin, MapPinned, Navigation, Route, Star, Users } from "lucide-react"
 import { useEffect, useState } from "react"
+import { tripsApi, type ApiTrip } from "@/lib/api"
+import { toast } from "sonner"
 
 const CUCEI_ADDRESS = "Blvd. Gral. Marcelino García Barragán 1421, Olímpica, 44430 Guadalajara, Jal."
 
@@ -287,15 +289,55 @@ export default function BuscarViajePage() {
     return copia.sort((a, b) => (a.distanciaKm || Number.POSITIVE_INFINITY) - (b.distanciaKm || Number.POSITIVE_INFINITY))
   }
 
-  const buscarViajes = () => {
-    // Simular búsqueda y ordenar por distancia
-    const viajesOrdenados = ordenarViajes([...viajesEjemplo])
-    setViajes(viajesOrdenados)
-    setViajesFiltrados(viajesOrdenados)
+  const buscarViajes = async () => {
+    try {
+      // Search trips from API
+      const result = await tripsApi.search({
+        origen: miUbicacion || undefined,
+        destino: CUCEI_ADDRESS,
+        fecha: fecha || undefined,
+      })
+      
+      // Map API trips to local Viaje format
+      const mapped: Viaje[] = result.data.map((t: ApiTrip) => ({
+        id: t.id,
+        conductor: {
+          nombre: t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido || ''}`.trim() : "Conductor",
+          foto: t.conductor?.fotoUrl || "/placeholder.svg?height=48&width=48",
+          rating: t.conductor?.ratingPromedio || 0,
+          totalViajes: t.conductor?.totalViajesConductor || 0,
+          ubicacion: t.origen,
+          carrera: t.conductor?.carrera,
+          vehiculo: t.vehiculo ? {
+            marca: t.vehiculo.marca,
+            modelo: t.vehiculo.modelo,
+            color: t.vehiculo.color,
+          } : undefined,
+        },
+        origen: t.origen,
+        destino: t.destino,
+        fecha: t.fecha,
+        hora: t.hora,
+        asientosDisponibles: t.asientosDisponibles,
+        precioSugerido: t.precio,
+        preferencias: [],
+        notas: t.notas,
+      }))
+      
+      // If no results from API, fall back to examples for demo
+      const finalViajes = mapped.length > 0 ? mapped : [...viajesEjemplo]
+      const viajesOrdenados = ordenarViajes(finalViajes)
+      setViajes(viajesOrdenados)
+      setViajesFiltrados(viajesOrdenados)
+    } catch {
+      // On error, fall back to example data
+      const viajesOrdenados = ordenarViajes([...viajesEjemplo])
+      setViajes(viajesOrdenados)
+      setViajesFiltrados(viajesOrdenados)
+    }
     setBusquedaRealizada(true)
     setOrigenRuta(miUbicacion)
     setDestinoRuta(CUCEI_ADDRESS)
-    // Resetear filtros al hacer nueva búsqueda
     setFiltroGenero("Todos")
     setFiltroPrecio(null)
     setFiltroAsientos(true)

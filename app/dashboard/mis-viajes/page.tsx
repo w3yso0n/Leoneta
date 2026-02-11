@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar, CheckCircle, CheckCircle2, Clock, Copy, DollarSign, Filter, MapPin, MessageSquare, RotateCcw, Search, Users, X } from "lucide-react"
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { tripsApi, reservationsApi, type ApiTrip, type ApiReservation } from "@/lib/api"
+import { toast } from "sonner"
 
 interface Viaje {
   id: string
@@ -37,98 +39,80 @@ interface Viaje {
   }
 }
 
-const viajesConductor: Viaje[] = [
-  {
-    id: "1",
-    origen: "Campus Central",
-    destino: "Centro Comercial Plaza",
-    fecha: "2025-01-20",
-    hora: "14:30",
-    asientosDisponibles: 1,
-    asientosTotales: 3,
-    precioSugerido: 50,
-    estado: "proximo",
-    pasajeros: [
-      {
-        nombre: "Ana López",
-        foto: "/placeholder.svg?height=40&width=40",
-        rating: 4.8,
-      },
-      {
-        nombre: "Pedro García",
-        foto: "/placeholder.svg?height=40&width=40",
-        rating: 4.9,
-      },
-    ],
-  },
-  {
-    id: "2",
-    origen: "Biblioteca Central",
-    destino: "Zona Residencial Norte",
-    fecha: "2025-01-10",
-    hora: "18:00",
-    asientosDisponibles: 0,
-    asientosTotales: 2,
-    precioSugerido: 40,
-    estado: "completado",
-    pasajeros: [
-      {
-        nombre: "María Rodríguez",
-        foto: "/placeholder.svg?height=40&width=40",
-        rating: 5.0,
-      },
-      {
-        nombre: "Luis Martínez",
-        foto: "/placeholder.svg?height=40&width=40",
-        rating: 4.7,
-      },
-    ],
-  },
-]
-
-const viajesPasajero: Viaje[] = [
-  {
-    id: "3",
-    origen: "Facultad de Ingeniería",
-    destino: "Aeropuerto Internacional",
-    fecha: "2025-01-25",
-    hora: "06:00",
-    asientosDisponibles: 0,
-    asientosTotales: 1,
-    precioSugerido: 150,
-    estado: "proximo",
-    conductor: {
-      nombre: "Carlos Ramírez",
-      foto: "/placeholder.svg?height=40&width=40",
-      rating: 4.9,
-    },
-  },
-  {
-    id: "4",
-    origen: "Campus Central",
-    destino: "Centro Histórico",
-    fecha: "2025-01-05",
-    hora: "10:00",
-    asientosDisponibles: 0,
-    asientosTotales: 1,
-    precioSugerido: 35,
-    estado: "completado",
-    conductor: {
-      nombre: "Laura Sánchez",
-      foto: "/placeholder.svg?height=40&width=40",
-      rating: 5.0,
-    },
-  },
-]
-
 export default function MisViajesPage() {
   const [activeTab, setActiveTab] = useState("conductor")
-  const [tripsConductor, setTripsConductor] = useState<Viaje[]>(viajesConductor)
-  const [tripsPasajero, setTripsPasajero] = useState<Viaje[]>(viajesPasajero)
+  const [tripsConductor, setTripsConductor] = useState<Viaje[]>([])
+  const [tripsPasajero, setTripsPasajero] = useState<Viaje[]>([])
   const [filtroEstado, setFiltroEstado] = useState<"todos" | "proximo" | "completado" | "cancelado">("todos")
   const [filtroDesde, setFiltroDesde] = useState("")
   const [filtroHasta, setFiltroHasta] = useState("")
   const [filtroTexto, setFiltroTexto] = useState("")
+  const [loadingData, setLoadingData] = useState(true)
+
+  // Map API estado to local estado
+  const mapEstado = (estado: string): "proximo" | "completado" | "cancelado" => {
+    if (estado === "completado") return "completado"
+    if (estado === "cancelado") return "cancelado"
+    return "proximo" // activo, en_curso → proximo
+  }
+
+  // Load trips from API
+  useEffect(() => {
+    async function loadTrips() {
+      setLoadingData(true)
+      try {
+        const [myTrips, myReservations] = await Promise.all([
+          tripsApi.getMyTrips().catch(() => [] as ApiTrip[]),
+          reservationsApi.getMyReservations().catch(() => [] as ApiReservation[]),
+        ])
+
+        // Map conductor trips
+        const conductorTrips: Viaje[] = myTrips.map((t) => ({
+          id: t.id,
+          origen: t.origen,
+          destino: t.destino,
+          fecha: t.fecha,
+          hora: t.hora,
+          asientosDisponibles: t.asientosDisponibles,
+          asientosTotales: t.asientosTotales,
+          precioSugerido: t.precio,
+          estado: mapEstado(t.estado),
+          pasajeros: [],
+        }))
+
+        // Map passenger trips (from reservations)
+        const pasajeroTrips: Viaje[] = myReservations
+          .filter((r) => r.viaje)
+          .map((r) => ({
+            id: r.id,
+            origen: r.viaje!.origen,
+            destino: r.viaje!.destino,
+            fecha: r.viaje!.fecha,
+            hora: r.viaje!.hora,
+            asientosDisponibles: r.asientosReservados,
+            asientosTotales: r.asientosReservados,
+            precioSugerido: r.viaje!.precio,
+            estado: mapEstado(r.estado === "confirmada" ? "activo" : r.estado),
+            conductor: r.viaje!.conductor
+              ? {
+                  nombre: `${r.viaje!.conductor.nombre} ${r.viaje!.conductor.apellido || ""}`.trim(),
+                  foto: r.viaje!.conductor.fotoUrl || "/placeholder.svg?height=40&width=40",
+                  rating: r.viaje!.conductor.ratingPromedio || 0,
+                }
+              : undefined,
+          }))
+
+        setTripsConductor(conductorTrips)
+        setTripsPasajero(pasajeroTrips)
+      } catch {
+        setTripsConductor([])
+        setTripsPasajero([])
+      } finally {
+        setLoadingData(false)
+      }
+    }
+    loadTrips()
+  }, [])
 
   const aplicaFiltros = (lista: Viaje[]) => {
     return lista.filter((v) => {
@@ -173,20 +157,34 @@ export default function MisViajesPage() {
       year: "numeric",
     })
 
-  const handleCancelar = (id: string, rol: "conductor" | "pasajero") => {
+  const handleCancelar = async (id: string, rol: "conductor" | "pasajero") => {
     if (!window.confirm("¿Seguro que deseas cancelar este viaje?")) return
-    if (rol === "conductor") {
-      setTripsConductor((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "cancelado" } : v)))
-    } else {
-      setTripsPasajero((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "cancelado" } : v)))
+    try {
+      if (rol === "conductor") {
+        await tripsApi.cancel(id)
+        setTripsConductor((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "cancelado" } : v)))
+      } else {
+        await reservationsApi.cancel(id)
+        setTripsPasajero((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "cancelado" } : v)))
+      }
+      toast.success("Viaje cancelado")
+    } catch {
+      toast.error("Error al cancelar el viaje")
     }
   }
 
-  const handleCompletar = (id: string, rol: "conductor" | "pasajero") => {
-    if (rol === "conductor") {
-      setTripsConductor((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "completado" } : v)))
-    } else {
-      setTripsPasajero((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "completado" } : v)))
+  const handleCompletar = async (id: string, rol: "conductor" | "pasajero") => {
+    try {
+      if (rol === "conductor") {
+        await tripsApi.complete(id)
+        setTripsConductor((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "completado" } : v)))
+      } else {
+        await reservationsApi.complete(id)
+        setTripsPasajero((prev) => prev.map((v) => (v.id === id ? { ...v, estado: "completado" } : v)))
+      }
+      toast.success("Viaje completado")
+    } catch {
+      toast.error("Error al completar el viaje")
     }
   }
 

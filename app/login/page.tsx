@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -22,7 +21,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
   const router = useRouter()
-  const { login, user, isLoading: authLoading } = useAuth()
+  const { login, loginWithGoogle, user, isLoading: authLoading } = useAuth()
 
   // Si ya hay sesión, redirigir al dashboard
   if (user && typeof window !== "undefined") {
@@ -105,7 +104,7 @@ export default function LoginPage() {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                onClick={() => loginWithGoogle()}
               >
                 <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                   <path

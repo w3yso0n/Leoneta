@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, GraduationCap, Phone, MapPin, User } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/lib/auth-context"
+import { usersApi } from "@/lib/api"
 
 const CARRERAS_UDG = [
   "Ingeniería en Computación",
@@ -31,7 +32,7 @@ const CARRERAS_UDG = [
 
 export default function CompletarRegistroPage() {
   const router = useRouter();
-  const { data: session, status, update } = useSession();
+  const { user, isLoading: authLoading, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     carrera: "",
@@ -41,10 +42,10 @@ export default function CompletarRegistroPage() {
   });
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (!authLoading && !user) {
       router.push("/login");
     }
-  }, [status, router]);
+  }, [authLoading, user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,29 +55,25 @@ export default function CompletarRegistroPage() {
       return;
     }
 
+    if (!user) return;
+
     setLoading(true);
 
     try {
-      const response = await fetch("/api/usuarios/completar-registro", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: session?.user?.email,
-          ...formData,
-        }),
+      await usersApi.completeRegistration(user.id, {
+        carrera: formData.carrera,
+        telefono: formData.telefono,
+        direccion: formData.direccion,
+        acercaDe: formData.acerca_de,
       });
-
-      if (!response.ok) {
-        throw new Error("Error al completar el registro");
-      }
 
       toast.success("¡Registro completado exitosamente!");
       
-      // Actualizar la sesión de NextAuth
-      await update();
+      // Refrescar datos del usuario
+      await refreshUser();
       
       // Redirigir al dashboard
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
     } catch (error) {
       toast.error("Error al completar el registro. Intenta de nuevo.");
       console.error(error);
@@ -85,7 +82,7 @@ export default function CompletarRegistroPage() {
     }
   };
 
-  if (status === "loading") {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -117,7 +114,7 @@ export default function CompletarRegistroPage() {
         <Card className="backdrop-blur-sm bg-card/95">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">
-              ¡Bienvenido {session?.user?.name}!
+              ¡Bienvenido {user?.nombre}!
             </CardTitle>
             <CardDescription className="text-center">
               Completa tu información para empezar a usar Leoneta
@@ -129,8 +126,8 @@ export default function CompletarRegistroPage() {
               <User className="h-4 w-4 text-accent" />
               <AlertDescription className="text-sm mt-2">
                 <p className="font-semibold">Tu información básica:</p>
-                <p className="text-xs mt-1">Email: {session?.user?.email}</p>
-                <p className="text-xs">Nombre: {session?.user?.name}</p>
+                <p className="text-xs mt-1">Email: {user?.email}</p>
+                <p className="text-xs">Nombre: {user?.nombre} {user?.apellido}</p>
               </AlertDescription>
             </Alert>
 
