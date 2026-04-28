@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch"
 import { ArrowUpDown, Clock, DollarSign, Filter, Loader2, MapPin, MapPinned, Navigation, Route, Star, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 import { tripsApi, type ApiTrip } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
 
 const CUCEI_ADDRESS = "Blvd. Gral. Marcelino García Barragán 1421, Olímpica, 44430 Guadalajara, Jal."
@@ -50,137 +51,8 @@ interface Viaje {
   notas?: string
 }
 
-// Viajes de ejemplo - todos van a CUCEI
-const viajesEjemplo: Viaje[] = [
-  {
-    id: "1",
-    conductor: {
-      nombre: "María González",
-      foto: "/placeholder.svg?height=48&width=48",
-      rating: 4.9,
-      totalViajes: 45,
-      ubicacion: "Chapalita, Guadalajara",
-      carrera: "Ingeniería Industrial",
-      genero: "Femenino",
-      vehiculo: {
-        marca: "Honda",
-        modelo: "Civic",
-        color: "Blanco",
-      },
-    },
-    origen: "Av. Guadalupe 1500, Chapalita, Guadalajara",
-    destino: CUCEI_ADDRESS,
-    fecha: "2025-01-15",
-    hora: "07:00",
-    asientosDisponibles: 3,
-    precioSugerido: 30,
-    preferencias: ["No fumar", "Música"],
-    distanciaKm: 2.5,
-    notas: "Paso por Av. Patria",
-  },
-  {
-    id: "2",
-    conductor: {
-      nombre: "Carlos Ramírez",
-      foto: "/placeholder.svg?height=48&width=48",
-      rating: 4.7,
-      totalViajes: 32,
-      ubicacion: "Zapopan Centro",
-      carrera: "Administración",
-      genero: "Masculino",
-      vehiculo: {
-        marca: "Nissan",
-        modelo: "Versa",
-        color: "Gris",
-      },
-    },
-    origen: "Plaza Patria, Zapopan, Jalisco",
-    destino: CUCEI_ADDRESS,
-    fecha: "2025-01-15",
-    hora: "07:15",
-    asientosDisponibles: 2,
-    precioSugerido: 35,
-    preferencias: ["No fumar"],
-    distanciaKm: 4.2,
-  },
-  {
-    id: "3",
-    conductor: {
-      nombre: "Ana Martínez",
-      foto: "/placeholder.svg?height=48&width=48",
-      rating: 5.0,
-      totalViajes: 67,
-      ubicacion: "Providencia",
-      carrera: "Medicina",
-      genero: "Femenino",
-      vehiculo: {
-        marca: "Toyota",
-        modelo: "Corolla",
-        color: "Negro",
-      },
-    },
-    origen: "Av. Providencia 2500, Guadalajara",
-    destino: CUCEI_ADDRESS,
-    fecha: "2025-01-15",
-    hora: "06:45",
-    asientosDisponibles: 1,
-    precioSugerido: 40,
-    preferencias: ["No fumar", "Puntualidad"],
-    distanciaKm: 5.8,
-  },
-  {
-    id: "4",
-    conductor: {
-      nombre: "Laura Hernández",
-      foto: "/placeholder.svg?height=48&width=48",
-      rating: 4.8,
-      totalViajes: 28,
-      ubicacion: "Americana",
-      carrera: "Sistemas Computacionales",
-      genero: "Femenino",
-      vehiculo: {
-        marca: "Mazda",
-        modelo: "3",
-        color: "Rojo",
-      },
-    },
-    origen: "Av. Américas 1600, Guadalajara",
-    destino: CUCEI_ADDRESS,
-    fecha: "2025-01-15",
-    hora: "07:30",
-    asientosDisponibles: 2,
-    precioSugerido: 18,
-    preferencias: ["No fumar", "Música"],
-    distanciaKm: 3.2,
-  },
-  {
-    id: "5",
-    conductor: {
-      nombre: "Pedro López",
-      foto: "/placeholder.svg?height=48&width=48",
-      rating: 4.6,
-      totalViajes: 22,
-      ubicacion: "Tlaquepaque",
-      carrera: "Química",
-      genero: "Masculino",
-      vehiculo: {
-        marca: "Volkswagen",
-        modelo: "Jetta",
-        color: "Azul",
-      },
-    },
-    origen: "Centro Tlaquepaque, Jalisco",
-    destino: CUCEI_ADDRESS,
-    fecha: "2025-01-15",
-    hora: "06:50",
-    asientosDisponibles: 3,
-    precioSugerido: 15,
-    preferencias: ["Puntualidad"],
-    distanciaKm: 6.1,
-  },
-]
-
 export default function BuscarViajePage() {
+  const { user } = useAuth()
   const [miUbicacion, setMiUbicacion] = useState("")
   const [miUbicacionTexto, setMiUbicacionTexto] = useState("")
   const [horario, setHorario] = useState("")
@@ -297,9 +169,14 @@ export default function BuscarViajePage() {
         destino: CUCEI_ADDRESS,
         fecha: fecha || undefined,
       })
+
+      const myId = user?.id
+      const apiTrips = myId
+        ? result.data.filter((t) => t.conductor?.id !== myId && t.conductorId !== myId)
+        : result.data
       
       // Map API trips to local Viaje format
-      const mapped: Viaje[] = result.data.map((t: ApiTrip) => ({
+      const mapped: Viaje[] = apiTrips.map((t: ApiTrip) => ({
         id: t.id,
         conductor: {
           nombre: t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido || ''}`.trim() : "Conductor",
@@ -324,16 +201,13 @@ export default function BuscarViajePage() {
         notas: t.notas,
       }))
       
-      // If no results from API, fall back to examples for demo
-      const finalViajes = mapped.length > 0 ? mapped : [...viajesEjemplo]
-      const viajesOrdenados = ordenarViajes(finalViajes)
+      const viajesOrdenados = ordenarViajes(mapped)
       setViajes(viajesOrdenados)
       setViajesFiltrados(viajesOrdenados)
     } catch {
-      // On error, fall back to example data
-      const viajesOrdenados = ordenarViajes([...viajesEjemplo])
-      setViajes(viajesOrdenados)
-      setViajesFiltrados(viajesOrdenados)
+      toast.error("No se pudieron cargar los viajes. Intenta de nuevo.")
+      setViajes([])
+      setViajesFiltrados([])
     }
     setBusquedaRealizada(true)
     setOrigenRuta(miUbicacion)
