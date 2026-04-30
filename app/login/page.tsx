@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -24,9 +24,11 @@ export default function LoginPage() {
   const { login, loginWithGoogle, user, isLoading: authLoading } = useAuth()
 
   // Si ya hay sesión, redirigir al dashboard
-  if (user && typeof window !== "undefined") {
-    router.replace("/dashboard")
-  }
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard")
+    }
+  }, [authLoading, router, user])
 
   // Validar que los campos estén llenos y el email sea válido
   const isFormValid = () => {

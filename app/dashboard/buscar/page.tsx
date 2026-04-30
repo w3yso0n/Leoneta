@@ -70,12 +70,13 @@ export default function BuscarViajePage() {
   const [origenRuta, setOrigenRuta] = useState("")
   const [destinoRuta, setDestinoRuta] = useState("")
   const [busquedaRealizada, setBusquedaRealizada] = useState(false)
+  const [autoUbicacionIntentada, setAutoUbicacionIntentada] = useState(false)
   
   // Estados de filtros
   const [filtroGenero, setFiltroGenero] = useState<"Todos" | "Masculino" | "Femenino">("Todos")
   const [filtroPrecio, setFiltroPrecio] = useState<number | null>(null)
   const [filtroAsientos, setFiltroAsientos] = useState(true)
-  const [orden, setOrden] = useState<"distancia" | "precio" | "hora">("distancia")
+  const [orden, setOrden] = useState<"distancia" | "precio">("distancia")
 
   // Función para geocodificación inversa
   const obtenerDireccionDesdeCoordenadas = async (lat: number, lng: number): Promise<string> => {
@@ -150,13 +151,21 @@ export default function BuscarViajePage() {
     setHorario(formatoHora(minutosDestino))
   }
 
+  // Por defecto: usar ubicación actual y un horario razonable (en 30 min)
+  useEffect(() => {
+    if (!horario) {
+      setHorarioRapido(30)
+    }
+    if (!autoUbicacionIntentada && !miUbicacion && !geolocalizando) {
+      setAutoUbicacionIntentada(true)
+      obtenerUbicacionActual()
+    }
+  }, [autoUbicacionIntentada, geolocalizando, horario, miUbicacion])
+
   const ordenarViajes = (lista: Viaje[]) => {
     const copia = [...lista]
     if (orden === "precio") {
       return copia.sort((a, b) => a.precioSugerido - b.precioSugerido)
-    }
-    if (orden === "hora") {
-      return copia.sort((a, b) => convertirHoraAMinutos(a.hora) - convertirHoraAMinutos(b.hora))
     }
     return copia.sort((a, b) => (a.distanciaKm || Number.POSITIVE_INFINITY) - (b.distanciaKm || Number.POSITIVE_INFINITY))
   }
@@ -247,7 +256,8 @@ export default function BuscarViajePage() {
 
   // Validar si el formulario está completo
   const isFormularioCompleto = () => {
-    return miUbicacion.trim() !== "" && horario.trim() !== ""
+    // La hora es informativa: no se usa para filtrar resultados
+    return miUbicacion.trim() !== ""
   }
 
   const verRutaDeViaje = (viaje: Viaje) => {
@@ -294,7 +304,7 @@ export default function BuscarViajePage() {
       <Alert className="border-primary/20 bg-primary/5">
         <MapPinned className="h-4 w-4 text-primary" />
         <AlertDescription className="text-sm">
-          <span className="font-semibold">Destino fijo: CUCEI</span> - Completa origen y horario para ver rutas disponibles
+          <span className="font-semibold">Destino fijo: CUCEI</span> - Completa tu origen para ver rutas disponibles
         </AlertDescription>
       </Alert>
 
@@ -304,7 +314,7 @@ export default function BuscarViajePage() {
           <div>
             <h2 className="text-base sm:text-lg font-bold mb-2 text-card-foreground">Buscar viaje</h2>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Completa todos los campos para buscar rutas disponibles
+              Usa tu origen (idealmente tu ubicación actual) para ver rutas disponibles
             </p>
           </div>
 
@@ -365,7 +375,7 @@ export default function BuscarViajePage() {
 
           {/* Horario */}
           <div className="space-y-2">
-            <Label htmlFor="horario" className="text-sm">Horario</Label>
+            <Label htmlFor="horario" className="text-sm">Horario (opcional)</Label>
             <div className="relative">
               <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -415,9 +425,9 @@ export default function BuscarViajePage() {
             Buscar viajes a CUCEI
           </Button>
 
-          {!isFormularioCompleto() && (miUbicacion || horario) && (
+          {!isFormularioCompleto() && miUbicacion && (
             <p className="text-xs text-muted-foreground text-center">
-              Completa origen y horario para habilitar la búsqueda
+              Completa tu origen para habilitar la búsqueda
             </p>
           )}
 
@@ -491,9 +501,6 @@ export default function BuscarViajePage() {
               <Badge variant="outline" className="text-xs sm:text-sm">
                 {fecha}
               </Badge>
-              <Badge variant="outline" className="text-xs sm:text-sm">
-                {horario || "Horario no definido"}
-              </Badge>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground mt-2">
               Ajusta filtros o cambia el orden para ver la mejor coincidencia.
@@ -561,7 +568,6 @@ export default function BuscarViajePage() {
                         <SelectContent>
                           <SelectItem value="distancia">Más cerca</SelectItem>
                           <SelectItem value="precio">Más barato</SelectItem>
-                          <SelectItem value="hora">Más temprano</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

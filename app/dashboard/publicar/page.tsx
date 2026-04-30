@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Car, CheckCircle2, Clock, DollarSign, Loader2, MapPin, MapPinned, Navigation, Plus, Users } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -26,6 +27,7 @@ interface FormData {
   origen: string
   fecha: string
   hora: string
+  horaLlegada: string
   asientos: string
   precio: string
   notas: string
@@ -111,6 +113,7 @@ export default function PublicarViajePage() {
     origen: "",
     fecha: "",
     hora: "",
+    horaLlegada: "",
     asientos: "1",
     precio: "",
     notas: "",
@@ -126,13 +129,51 @@ export default function PublicarViajePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [geolocalizando, setGeolocalizando] = useState(false)
+  const [modoPublicacion, setModoPublicacion] = useState<"unitario" | "rutina">("rutina")
+  const [rutinaDias, setRutinaDias] = useState<number[]>([1, 2, 3, 4, 5]) // Lun-Vie
+  const [rutinaSemanas, setRutinaSemanas] = useState(12)
   const isEssentialComplete = (
     formData.origen.trim() !== "" &&
-    formData.fecha !== "" &&
     formData.hora !== "" &&
     !!formData.precio && Number.parseFloat(formData.precio) > 0 &&
     !!formData.asientos && Number.parseInt(formData.asientos) >= 1 && Number.parseInt(formData.asientos) <= 4
   )
+
+  const esRutinaSemanal = modoPublicacion === "rutina"
+  const isRutinaValida = esRutinaSemanal ? rutinaDias.length > 0 && rutinaSemanas >= 1 : formData.fecha !== ""
+
+  const toMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number)
+    return h * 60 + (m || 0)
+  }
+
+  const calcDuracionMin = (salida: string, llegada: string) => {
+    if (!salida || !llegada) return undefined
+    const s = toMinutes(salida)
+    const l = toMinutes(llegada)
+    const diff = l - s
+    if (diff >= 0) return diff
+    // cruza medianoche
+    return diff + 24 * 60
+  }
+
+  const nextDateForSelectedDays = (days: number[]) => {
+    const today = new Date()
+    const base = new Date(today)
+    base.setHours(0, 0, 0, 0)
+    const dow = base.getDay()
+    const diffs = days
+      .slice()
+      .sort((a, b) => a - b)
+      .map((d) => (d - dow + 7) % 7)
+    const minDiff = diffs.length ? Math.min(...diffs) : 0
+    const next = new Date(base)
+    next.setDate(base.getDate() + minDiff)
+    const yyyy = next.getFullYear()
+    const mm = String(next.getMonth() + 1).padStart(2, "0")
+    const dd = String(next.getDate()).padStart(2, "0")
+    return `${yyyy}-${mm}-${dd}`
+  }
 
   const horaEnMinutos = () => {
     const ahora = new Date()
@@ -197,12 +238,14 @@ export default function PublicarViajePage() {
     const newErrors: Partial<Record<keyof FormData, string>> = {}
 
     if (!formData.origen.trim()) newErrors.origen = "Requerido"
-    if (!formData.fecha) newErrors.fecha = "Requerida"
-    else {
-      const selectedDate = new Date(formData.fecha)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      if (selectedDate < today) newErrors.fecha = "Fecha inválida"
+    if (!esRutinaSemanal) {
+      if (!formData.fecha) newErrors.fecha = "Requerida"
+      else {
+        const selectedDate = new Date(formData.fecha)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        if (selectedDate < today) newErrors.fecha = "Fecha inválida"
+      }
     }
     if (!formData.hora) newErrors.hora = "Requerida"
     if (!formData.asientos || Number.parseInt(formData.asientos) < 1 || Number.parseInt(formData.asientos) > 4) {
@@ -229,15 +272,20 @@ export default function PublicarViajePage() {
     setIsSubmitting(true)
 
     try {
+      const fechaEnvio = esRutinaSemanal ? nextDateForSelectedDays(rutinaDias) : formData.fecha
+      const duracionEstimadaMin = calcDuracionMin(formData.hora, formData.horaLlegada)
+
       await tripsApi.create({
         vehiculoId: selectedVehicleId,
         origen: formData.origen,
         destino: CUCEI_ADDRESS,
-        fecha: formData.fecha,
+        fecha: fechaEnvio,
         hora: formData.hora,
+        ...(esRutinaSemanal ? { recurrenciaSemanalDias: rutinaDias, recurrenciaSemanalSemanas: rutinaSemanas } : {}),
         asientosTotales: Number.parseInt(formData.asientos),
         precio: Number.parseFloat(formData.precio),
         notas: formData.notas || undefined,
+        ...(duracionEstimadaMin !== undefined ? { duracionEstimadaMin } : {}),
       })
 
       setShowSuccess(true)
@@ -247,6 +295,7 @@ export default function PublicarViajePage() {
         origen: "",
         fecha: "",
         hora: "",
+        horaLlegada: "",
         asientos: "1",
         precio: "",
         notas: "",
@@ -499,6 +548,27 @@ export default function PublicarViajePage() {
           <h2 className="text-base sm:text-lg font-bold mb-4 text-card-foreground">¿Desde dónde sales?</h2>
 
           <div className="space-y-4">
+            {/* Modo de publicación */}
+            <div className="space-y-2">
+              <Label className="text-sm">¿Qué quieres publicar?</Label>
+              <Tabs value={modoPublicacion} onValueChange={(v) => setModoPublicacion(v as any)} className="w-full">
+                <TabsList className="grid grid-cols-2 w-full">
+                  <TabsTrigger value="rutina">Rutina semanal</TabsTrigger>
+                  <TabsTrigger value="unitario">Viaje unitario</TabsTrigger>
+                </TabsList>
+                <TabsContent value="rutina" className="mt-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Ideal si siempre sales los mismos días a la misma hora. Lo publicas una vez y generamos tus viajes por varias semanas.
+                  </p>
+                </TabsContent>
+                <TabsContent value="unitario" className="mt-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Publica un solo viaje para una fecha específica.
+                  </p>
+                </TabsContent>
+              </Tabs>
+            </div>
+
             {/* Origen */}
             <div className="space-y-2">
               <Label htmlFor="origen" className="text-sm">
@@ -552,17 +622,70 @@ export default function PublicarViajePage() {
             {/* Fecha y Hora */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
-                <Label htmlFor="fecha" className="text-sm">
-                  Fecha <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="fecha"
-                  type="date"
-                  value={formData.fecha}
-                  onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
-                  className={`text-sm ${errors.fecha ? "border-destructive" : ""}`}
-                />
-                {errors.fecha && <p className="text-xs text-destructive">{errors.fecha}</p>}
+                {esRutinaSemanal ? (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Días de la semana <span className="text-destructive">*</span></Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { d: 1, label: "Lunes" },
+                        { d: 2, label: "Martes" },
+                        { d: 3, label: "Miércoles" },
+                        { d: 4, label: "Jueves" },
+                        { d: 5, label: "Viernes" },
+                        { d: 6, label: "Sábado" },
+                        { d: 0, label: "Domingo" },
+                      ].map(({ d, label }) => (
+                        <label key={d} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={rutinaDias.includes(d)}
+                            onCheckedChange={(c) => {
+                              const checked = !!c
+                              setRutinaDias((prev) => {
+                                const set = new Set(prev)
+                                if (checked) set.add(d)
+                                else set.delete(d)
+                                return Array.from(set).sort((a, b) => a - b)
+                              })
+                            }}
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">¿Cuántas semanas?</Label>
+                      <Select value={String(rutinaSemanas)} onValueChange={(v) => setRutinaSemanas(Number(v))}>
+                        <SelectTrigger className="text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[4, 8, 12, 16, 24].map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n} semanas
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Próxima fecha: {nextDateForSelectedDays(rutinaDias)}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Label htmlFor="fecha" className="text-sm">
+                      Fecha <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="fecha"
+                      type="date"
+                      value={formData.fecha}
+                      onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                      className={`text-sm ${errors.fecha ? "border-destructive" : ""}`}
+                    />
+                    {errors.fecha && <p className="text-xs text-destructive">{errors.fecha}</p>}
+                  </>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -592,6 +715,24 @@ export default function PublicarViajePage() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* Hora de llegada (opcional) */}
+            <div className="space-y-2">
+              <Label htmlFor="horaLlegada" className="text-sm">Hora de llegada a CUCEI (opcional)</Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="horaLlegada"
+                  type="time"
+                  value={formData.horaLlegada}
+                  onChange={(e) => setFormData({ ...formData, horaLlegada: e.target.value })}
+                  className="pl-9 text-sm"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Se usará para calcular una duración estimada (no afecta la búsqueda).
+              </p>
             </div>
 
             {/* Asientos y Precio */}
@@ -787,7 +928,7 @@ export default function PublicarViajePage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             type="submit"
-            disabled={isSubmitting || !isEssentialComplete}
+            disabled={isSubmitting || !isEssentialComplete || !isRutinaValida}
             className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground text-sm sm:text-base"
           >
             {isSubmitting ? "Publicando..." : "Ofrecer viaje"}
@@ -802,7 +943,9 @@ export default function PublicarViajePage() {
           </Button>
         </div>
         {!isEssentialComplete && (
-          <p className="text-xs text-muted-foreground">Completa origen, fecha, hora, asientos y precio para publicar.</p>
+          <p className="text-xs text-muted-foreground">
+            Completa origen, {esRutinaSemanal ? "días/semana(s) de la rutina" : "fecha"}, hora, asientos y precio para publicar.
+          </p>
         )}
       </form>
       )}

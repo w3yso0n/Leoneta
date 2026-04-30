@@ -83,6 +83,7 @@ export interface ApiVehicle {
 
 export interface ApiTrip {
   id: string;
+  rutinaId?: string;
   conductor?: ApiUser;
   conductorId?: string;
   vehiculo?: ApiVehicle;
@@ -455,6 +456,8 @@ export const tripsApi = {
     destinoLongitud?: number;
     fecha: string;
     hora: string;
+    recurrenciaSemanalDias?: number[];
+    recurrenciaSemanalSemanas?: number;
     asientosTotales: number;
     precio: number;
     metodosPago?: string[];
