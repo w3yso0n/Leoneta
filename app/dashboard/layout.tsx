@@ -1,12 +1,26 @@
 "use client"
 
 import type React from "react"
+import { useEffect, useState } from "react"
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Plus, List, User, Star, LogOut } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import {
+  Search,
+  Plus,
+  List,
+  User,
+  Star,
+  LogOut,
+  Moon,
+  Sun,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { AuthGuard } from "@/components/auth-guard"
@@ -16,6 +30,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [themeMounted, setThemeMounted] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  useEffect(() => {
+    setThemeMounted(true)
+  }, [])
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("leoneta-sidebar-collapsed") === "1") {
+        setSidebarCollapsed(true)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem("leoneta-sidebar-collapsed", next ? "1" : "0")
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
 
   const handleLogout = () => {
     logout()
@@ -61,70 +104,173 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className="flex">
         {/* Desktop Sidebar */}
-        <aside className="hidden lg:flex fixed lg:sticky top-0 left-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
-          <div className="flex flex-col h-full w-full">
-            {/* Logo */}
-            <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-              <Image 
-                src="/logos/udg.png" 
-                alt="Universidad de Guadalajara" 
-                width={48} 
-                height={48}
-                className="object-contain"
-              />
-              <span className="text-2xl font-bold text-sidebar-foreground">Leoneta</span>
+        <aside
+          className={cn(
+            "hidden lg:flex fixed lg:sticky top-0 left-0 z-40 h-screen shrink-0 overflow-hidden border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ease-in-out",
+            sidebarCollapsed ? "w-[4.5rem]" : "w-64",
+          )}
+        >
+          <div className="flex h-full w-full flex-col">
+            {/* Logo + colapsar */}
+            <div
+              className={cn(
+                "flex border-b border-sidebar-border",
+                sidebarCollapsed
+                  ? "flex-col items-center gap-2 px-2 py-3"
+                  : "items-center gap-3 px-4 py-4",
+              )}
+            >
+              <Link
+                href="/dashboard"
+                className={cn(
+                  "flex items-center gap-3 min-w-0",
+                  sidebarCollapsed && "justify-center",
+                )}
+              >
+                <Image
+                  src="/logos/udg.png"
+                  alt="Universidad de Guadalajara"
+                  width={40}
+                  height={40}
+                  className={cn("object-contain shrink-0", sidebarCollapsed ? "h-9 w-9" : "h-10 w-10")}
+                />
+                {!sidebarCollapsed && (
+                  <span className="truncate text-xl font-bold text-sidebar-foreground">Leoneta</span>
+                )}
+              </Link>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebarCollapsed}
+                className={cn(
+                  "h-9 w-9 shrink-0 text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                  !sidebarCollapsed && "ml-auto",
+                )}
+                aria-label={sidebarCollapsed ? "Expandir menú lateral" : "Minimizar menú lateral"}
+                title={sidebarCollapsed ? "Expandir menú" : "Minimizar menú"}
+              >
+                {sidebarCollapsed ? (
+                  <ChevronsRight className="h-5 w-5" />
+                ) : (
+                  <ChevronsLeft className="h-5 w-5" />
+                )}
+              </Button>
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 px-3 py-6 space-y-1">
+            <nav className={cn("flex-1 space-y-1 overflow-y-auto py-4", sidebarCollapsed ? "px-1.5" : "px-3")}>
               {navigation.map((item) => {
                 const isActive = pathname.startsWith(item.href)
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
+                    title={sidebarCollapsed ? item.name : undefined}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                      "flex items-center rounded-lg text-sm font-medium transition-colors",
+                      sidebarCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
                       isActive
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
                         : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
                     )}
                     aria-current={isActive ? "page" : undefined}
                   >
-                    <item.icon className="w-5 h-5" />
-                    {item.name}
+                    <item.icon className="h-5 w-5 shrink-0" />
+                    {!sidebarCollapsed && item.name}
                   </Link>
                 )
               })}
             </nav>
 
             {/* User Profile */}
-            <div className="border-t border-sidebar-border p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={user?.foto} />
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground">
-                    {getUserInitials()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate">
-                    {user?.nombre} {user?.apellido}
-                  </p>
-                  <p className="text-xs text-sidebar-foreground/60 truncate capitalize">
-                    {user?.rol}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Cerrar sesión
-              </Button>
+            <div
+              className={cn(
+                "border-t border-sidebar-border",
+                sidebarCollapsed ? "flex flex-col items-center gap-2 p-2" : "p-4",
+              )}
+            >
+              {sidebarCollapsed ? (
+                <>
+                  <Avatar className="h-9 w-9 shrink-0">
+                    <AvatarImage src={user?.foto} />
+                    <AvatarFallback className="bg-sidebar-primary text-xs text-sidebar-primary-foreground">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
+                    disabled={!themeMounted}
+                    title={themeMounted && resolvedTheme === "dark" ? "Modo claro" : "Modo oscuro"}
+                    aria-label="Alternar modo claro u oscuro"
+                    onClick={() =>
+                      setTheme(themeMounted && resolvedTheme === "dark" ? "light" : "dark")
+                    }
+                  >
+                    {themeMounted && resolvedTheme === "dark" ? (
+                      <Sun className="h-4 w-4" />
+                    ) : (
+                      <Moon className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleLogout}
+                    className="h-9 w-9 text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    title="Cerrar sesión"
+                    aria-label="Cerrar sesión"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-start gap-3">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarImage src={user?.foto} />
+                      <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground">
+                        {getUserInitials()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <p className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground">
+                          {user?.nombre} {user?.apellido}
+                        </p>
+                        <div
+                          className="flex shrink-0 items-center gap-1.5"
+                          title={themeMounted && resolvedTheme === "dark" ? "Modo oscuro" : "Modo claro"}
+                        >
+                          <Sun className="h-3.5 w-3.5 text-sidebar-foreground/50" aria-hidden />
+                          <Switch
+                            checked={themeMounted ? resolvedTheme === "dark" : false}
+                            onCheckedChange={(on) => setTheme(on ? "dark" : "light")}
+                            disabled={!themeMounted}
+                            className="data-[state=checked]:bg-sidebar-primary"
+                            aria-label="Alternar modo claro u oscuro"
+                          />
+                          <Moon className="h-3.5 w-3.5 text-sidebar-foreground/50" aria-hidden />
+                        </div>
+                      </div>
+                      <p className="truncate text-xs capitalize text-sidebar-foreground/60">{user?.rol}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="w-full justify-start text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Cerrar sesión
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </aside>

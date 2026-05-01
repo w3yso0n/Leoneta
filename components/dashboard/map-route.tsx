@@ -30,6 +30,7 @@ export function MapRoute({
   const [destCoords, setDestCoords] = useState<[number, number] | null>(null)
   const markersRef = useRef<mapboxgl.Marker[]>([])
   const routeLayerId = "route-layer"
+  const routeUpdateGenerationRef = useRef(0)
 
   // Geocode function
   const geocode = async (address: string): Promise<[number, number] | null> => {
@@ -98,18 +99,22 @@ export function MapRoute({
   useEffect(() => {
     if (!map.current) return
 
+    let cancelled = false
+    const generation = ++routeUpdateGenerationRef.current
+
+    const removeRouteLayer = () => {
+      const m = map.current
+      if (!m) return
+      if (m.getLayer(routeLayerId)) m.removeLayer(routeLayerId)
+      if (m.getSource(routeLayerId)) m.removeSource(routeLayerId)
+    }
+
     const updateMap = async () => {
       // Clear existing markers
       markersRef.current.forEach(marker => marker.remove())
       markersRef.current = []
 
-      // Remove existing route layer
-      if (map.current?.getLayer(routeLayerId)) {
-        map.current.removeLayer(routeLayerId)
-      }
-      if (map.current?.getSource(routeLayerId)) {
-        map.current.removeSource(routeLayerId)
-      }
+      removeRouteLayer()
 
       let newOriginCoords: [number, number] | null = null
       let newDestCoords: [number, number] | null = null
@@ -117,17 +122,18 @@ export function MapRoute({
       // Geocode origin
       if (origin) {
         const coords = await geocode(origin)
+        if (cancelled || !map.current) return
         if (coords) {
           newOriginCoords = coords
           setOriginCoords(coords)
-          
+
           // Determinar el texto del popup
           let popupText = origin
           const coordMatch = origin.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/)
           if (coordMatch) {
             popupText = "Tu ubicación actual"
           }
-          
+
           const marker = new mapboxgl.Marker({ color: "#22c55e" })
             .setLngLat(coords)
             .setPopup(new mapboxgl.Popup().setHTML(`<p class="text-sm font-medium">Origen: ${popupText}</p>`))
@@ -139,6 +145,7 @@ export function MapRoute({
       // Geocode destination
       if (destination) {
         const coords = await geocode(destination)
+        if (cancelled || !map.current) return
         if (coords) {
           newDestCoords = coords
           setDestCoords(coords)
@@ -153,8 +160,14 @@ export function MapRoute({
       // Draw route if both points exist - usar las coordenadas recién geocodificadas
       if (newOriginCoords && newDestCoords && map.current) {
         const route = await getRoute(newOriginCoords, newDestCoords)
-        
+        if (cancelled || !map.current) return
+
         if (route && map.current.isStyleLoaded()) {
+          if (cancelled || generation !== routeUpdateGenerationRef.current) return
+          // Otra ejecución pudo añadir la misma fuente mientras esperábamos la Directions API
+          removeRouteLayer()
+          if (cancelled || generation !== routeUpdateGenerationRef.current) return
+
           map.current.addSource(routeLayerId, {
             type: "geojson",
             data: {
@@ -186,15 +199,20 @@ export function MapRoute({
           map.current.fitBounds(bounds, { padding: 80, duration: 1000 })
         }
       } else if (newOriginCoords || newDestCoords) {
+        if (cancelled || !map.current) return
         // Fit to single marker
         const coords = newOriginCoords || newDestCoords
-        if (coords && map.current) {
+        if (coords) {
           map.current.flyTo({ center: coords, zoom: 13, duration: 1000 })
         }
       }
     }
 
-    updateMap()
+    void updateMap()
+
+    return () => {
+      cancelled = true
+    }
   }, [origin, destination])
 
   return (

@@ -55,6 +55,8 @@ export default function BuscarViajePage() {
   const { user } = useAuth()
   const [miUbicacion, setMiUbicacion] = useState("")
   const [miUbicacionTexto, setMiUbicacionTexto] = useState("")
+  /** Valor del input mientras se edita; el mapa y el estado “confirmado” solo se actualizan al salir del campo o al buscar. */
+  const [origenDraft, setOrigenDraft] = useState("")
   const [horario, setHorario] = useState("")
   const [ubicacionActual, setUbicacionActual] = useState<{ lat: number; lng: number } | null>(null)
   const [viajes, setViajes] = useState<Viaje[]>([])
@@ -110,18 +112,14 @@ export default function BuscarViajePage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords
-        setUbicacionActual({ lat: latitude, lng: longitude })
-        
-        // Usar las coordenadas reales para el mapa
         const coordenadasTexto = `${latitude},${longitude}`
-        setMiUbicacion(coordenadasTexto)
-        
-        // Obtener dirección amigable
         const direccionAmigable = await obtenerDireccionDesdeCoordenadas(latitude, longitude)
-        setMiUbicacionTexto(direccionAmigable)
-        
         setGeolocalizando(false)
-        buscarViajes()
+        await buscarViajes({
+          origenStr: coordenadasTexto,
+          direccionTexto: direccionAmigable,
+          ubi: { lat: latitude, lng: longitude },
+        })
       },
       (error) => {
         setErrorUbicacion("No se pudo obtener tu ubicación. Por favor, ingrésala manualmente.")
@@ -185,15 +183,59 @@ export default function BuscarViajePage() {
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)))
   }
 
-  const buscarViajes = async () => {
+  type BuscarViajesDesdeGps = {
+    origenStr: string
+    direccionTexto: string
+    ubi: { lat: number; lng: number }
+  }
+
+  const confirmarOrigenDesdeDraft = (): {
+    origenStr: string
+    ubi: { lat: number; lng: number } | null
+  } => {
+    const v = origenDraft.trim()
+    // Tras GPS: el input muestra la dirección pero miUbicacion sigue siendo coordenadas; un blur sin editar no debe perderlas.
+    if (v === miUbicacionTexto.trim() && isCoordenadas(miUbicacion)) {
+      return { origenStr: miUbicacion, ubi: ubicacionActual }
+    }
+    setMiUbicacion(v)
+    setMiUbicacionTexto(v)
+    let ubi: { lat: number; lng: number } | null = null
+    if (v && isCoordenadas(v)) {
+      const [la, ln] = v.split(",").map(Number)
+      if (!Number.isNaN(la) && !Number.isNaN(ln)) {
+        ubi = { lat: la, lng: ln }
+      }
+    }
+    setUbicacionActual(ubi)
+    return { origenStr: v, ubi }
+  }
+
+  const buscarViajes = async (desdeGps?: BuscarViajesDesdeGps) => {
+    let origenStr: string
+    let ubi: { lat: number; lng: number } | null
+
+    if (desdeGps) {
+      origenStr = desdeGps.origenStr
+      ubi = desdeGps.ubi
+      setMiUbicacion(origenStr)
+      setMiUbicacionTexto(desdeGps.direccionTexto)
+      setUbicacionActual(ubi)
+      setOrigenDraft(desdeGps.direccionTexto)
+    } else {
+      const committed = confirmarOrigenDesdeDraft()
+      origenStr = committed.origenStr
+      ubi = committed.ubi
+    }
+
     try {
-      const origenQuery = miUbicacion && !isCoordenadas(miUbicacion) ? miUbicacion : undefined
+      const origenQuery = origenStr && !isCoordenadas(origenStr) ? origenStr : undefined
 
       // Search trips from API
       const result = await tripsApi.search({
         origen: origenQuery,
-        origenLat: ubicacionActual?.lat,
-        origenLng: ubicacionActual?.lng,
+        origenLat: ubi?.lat,
+        origenLng: ubi?.lng,
         destino: CUCEI_ADDRESS,
         fecha: fecha || undefined,
       })
@@ -210,8 +252,8 @@ export default function BuscarViajePage() {
         const distanciaKm =
           typeof t.distanciaKm === "number"
             ? t.distanciaKm
-            : ubicacionActual && typeof oLat === "number" && typeof oLng === "number"
-              ? Number(haversineKm(ubicacionActual, { lat: oLat, lng: oLng }).toFixed(1))
+            : ubi && typeof oLat === "number" && typeof oLng === "number"
+              ? Number(haversineKm(ubi, { lat: oLat, lng: oLng }).toFixed(1))
               : undefined
 
         return {
@@ -250,7 +292,7 @@ export default function BuscarViajePage() {
       setViajesFiltrados([])
     }
     setBusquedaRealizada(true)
-    setOrigenRuta(miUbicacion)
+    setOrigenRuta(origenStr)
     setDestinoRuta(CUCEI_ADDRESS)
     setFiltroGenero("Todos")
     setFiltroPrecio(null)
@@ -288,7 +330,7 @@ export default function BuscarViajePage() {
   // Validar si el formulario está completo
   const isFormularioCompleto = () => {
     // La hora es informativa: no se usa para filtrar resultados
-    return miUbicacion.trim() !== ""
+    return origenDraft.trim() !== ""
   }
 
   const verRutaDeViaje = (viaje: Viaje) => {
@@ -378,11 +420,9 @@ export default function BuscarViajePage() {
                   <Input
                     id="origen"
                     placeholder="Ej: Plaza del Sol"
-                    value={miUbicacionTexto || miUbicacion}
-                    onChange={(e) => {
-                      setMiUbicacion(e.target.value)
-                      setMiUbicacionTexto(e.target.value)
-                    }}
+                    value={origenDraft}
+                    onChange={(e) => setOrigenDraft(e.target.value)}
+                    onBlur={() => confirmarOrigenDesdeDraft()}
                     className="pl-9 text-sm"
                   />
                 </div>
@@ -406,7 +446,7 @@ export default function BuscarViajePage() {
 
           {/* Horario */}
           <div className="space-y-2">
-            <Label htmlFor="horario" className="text-sm">Horario (opcional)</Label>
+            <Label htmlFor="horario" className="text-sm">Horario de llegada (opcional)</Label>
             <div className="relative">
               <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -447,7 +487,7 @@ export default function BuscarViajePage() {
 
           {/* Botón Buscar */}
           <Button
-            onClick={buscarViajes}
+            onClick={() => void buscarViajes()}
             disabled={!isFormularioCompleto()}
             className="w-full"
             size="lg"
@@ -456,7 +496,7 @@ export default function BuscarViajePage() {
             Buscar viajes a CUCEI
           </Button>
 
-          {!isFormularioCompleto() && miUbicacion && (
+          {!isFormularioCompleto() && origenDraft && (
             <p className="text-xs text-muted-foreground text-center">
               Completa tu origen para habilitar la búsqueda
             </p>
