@@ -170,11 +170,30 @@ export default function BuscarViajePage() {
     return copia.sort((a, b) => (a.distanciaKm || Number.POSITIVE_INFINITY) - (b.distanciaKm || Number.POSITIVE_INFINITY))
   }
 
+  const isCoordenadas = (value: string) => /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(value.trim())
+
+  const haversineKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 6371
+    const toRad = (d: number) => (d * Math.PI) / 180
+    const dLat = toRad(b.lat - a.lat)
+    const dLng = toRad(b.lng - a.lng)
+    const lat1 = toRad(a.lat)
+    const lat2 = toRad(b.lat)
+    const sinDLat = Math.sin(dLat / 2)
+    const sinDLng = Math.sin(dLng / 2)
+    const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * (sinDLng * sinDLng)
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)))
+  }
+
   const buscarViajes = async () => {
     try {
+      const origenQuery = miUbicacion && !isCoordenadas(miUbicacion) ? miUbicacion : undefined
+
       // Search trips from API
       const result = await tripsApi.search({
-        origen: miUbicacion || undefined,
+        origen: origenQuery,
+        origenLat: ubicacionActual?.lat,
+        origenLng: ubicacionActual?.lng,
         destino: CUCEI_ADDRESS,
         fecha: fecha || undefined,
       })
@@ -185,7 +204,17 @@ export default function BuscarViajePage() {
         : result.data
       
       // Map API trips to local Viaje format
-      const mapped: Viaje[] = apiTrips.map((t: ApiTrip) => ({
+      const mapped: Viaje[] = apiTrips.map((t: ApiTrip) => {
+        const oLat = t.origenLat ?? t.origenLatitud
+        const oLng = t.origenLng ?? t.origenLongitud
+        const distanciaKm =
+          typeof t.distanciaKm === "number"
+            ? t.distanciaKm
+            : ubicacionActual && typeof oLat === "number" && typeof oLng === "number"
+              ? Number(haversineKm(ubicacionActual, { lat: oLat, lng: oLng }).toFixed(1))
+              : undefined
+
+        return {
         id: t.id,
         conductor: {
           nombre: t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido || ''}`.trim() : "Conductor",
@@ -208,7 +237,9 @@ export default function BuscarViajePage() {
         precioSugerido: t.precio,
         preferencias: [],
         notas: t.notas,
-      }))
+        distanciaKm,
+        }
+      })
       
       const viajesOrdenados = ordenarViajes(mapped)
       setViajes(viajesOrdenados)
@@ -656,7 +687,7 @@ export default function BuscarViajePage() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <Badge className="bg-primary/10 text-primary hover:bg-primary/20 text-xs sm:text-sm">
-                          {viaje.distanciaKm} km
+                          {typeof viaje.distanciaKm === "number" ? `${viaje.distanciaKm} km` : "—"}
                         </Badge>
                         <span className="text-xs text-muted-foreground">de ti</span>
                       </div>

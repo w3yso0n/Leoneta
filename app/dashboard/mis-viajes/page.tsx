@@ -258,6 +258,17 @@ export default function MisViajesPage() {
                     <Badge variant="outline" className="text-xs">
                       <DollarSign className="w-3 h-3 mr-1" />${first.precioSugerido} MXN
                     </Badge>
+                    {isRutina && g.rutinaId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive bg-transparent"
+                        onClick={() => handleEliminarRutina(g.rutinaId!)}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Eliminar rutina
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -385,6 +396,17 @@ export default function MisViajesPage() {
       toast.success("Viaje cancelado")
     } catch {
       toast.error("Error al cancelar el viaje")
+    }
+  }
+
+  const handleEliminarRutina = async (rutinaId: string) => {
+    if (!window.confirm("¿Eliminar TODOS los viajes de esta rutina? Esta acción no se puede deshacer.")) return
+    try {
+      await tripsApi.deleteRoutine(rutinaId)
+      setTripsConductor((prev) => prev.filter((v) => v.rutinaId !== rutinaId))
+      toast.success("Rutina eliminada")
+    } catch {
+      toast.error("Error al eliminar la rutina")
     }
   }
 

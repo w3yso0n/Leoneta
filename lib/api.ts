@@ -90,6 +90,14 @@ export interface ApiTrip {
   vehiculoId?: string;
   origen: string;
   destino: string;
+  /**
+   * El backend expone coordenadas como `origenLat/origenLng` y `destinoLat/destinoLng`.
+   * Dejamos también las variantes `*Latitud/*Longitud` por compatibilidad con UI antigua.
+   */
+  origenLat?: number;
+  origenLng?: number;
+  destinoLat?: number;
+  destinoLng?: number;
   origenLatitud?: number;
   origenLongitud?: number;
   destinoLatitud?: number;
@@ -102,6 +110,7 @@ export interface ApiTrip {
   metodosPago: string[];
   estado: string;
   notas?: string;
+  distanciaKm?: number;
   createdAt: string;
 }
 
@@ -425,6 +434,8 @@ export const tripsApi = {
     hora?: string;
     precioMin?: number;
     precioMax?: number;
+    origenLat?: number;
+    origenLng?: number;
     page?: number;
     limit?: number;
   }): Promise<{ data: ApiTrip[]; total: number; page: number; limit: number }> {
@@ -506,6 +517,12 @@ export const tripsApi = {
 
   delete(id: string): Promise<void> {
     return apiFetch(`/viajes/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  deleteRoutine(rutinaId: string): Promise<void> {
+    return apiFetch(`/viajes/rutina/${rutinaId}`, {
       method: 'DELETE',
     });
   },
