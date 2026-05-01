@@ -27,26 +27,7 @@ interface ChatModalProps {
 }
 
 export function ChatModal({ open, onOpenChange, contacto }: ChatModalProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      sender: "other",
-      text: "Hola! Vi que te interesa el viaje. ¿Tienes alguna pregunta?",
-      timestamp: "10:30",
-    },
-    {
-      id: "2",
-      sender: "me",
-      text: "Hola! Sí, ¿a qué hora exactamente sales?",
-      timestamp: "10:32",
-    },
-    {
-      id: "3",
-      sender: "other",
-      text: "Salgo a las 2:30 PM desde el estacionamiento del campus central.",
-      timestamp: "10:33",
-    },
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
 
   const handleSend = () => {
@@ -89,26 +70,37 @@ export function ChatModal({ open, onOpenChange, contacto }: ChatModalProps) {
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[70%] rounded-lg px-4 py-2 ${
-                    message.sender === "me" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  <p className="text-sm leading-relaxed">{message.text}</p>
-                  <p
-                    className={`text-xs mt-1 ${
-                      message.sender === "me" ? "text-accent-foreground/70" : "text-muted-foreground/70"
+          {messages.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-center py-10">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Aún no hay mensajes</p>
+                <p className="text-xs text-muted-foreground">
+                  Este chat ya no muestra mensajes de prueba. Aquí aparecerán los mensajes reales cuando se conecte el historial.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <div key={message.id} className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                      message.sender === "me" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {message.timestamp}
-                  </p>
+                    <p className="text-sm leading-relaxed">{message.text}</p>
+                    <p
+                      className={`text-xs mt-1 ${
+                        message.sender === "me" ? "text-accent-foreground/70" : "text-muted-foreground/70"
+                      }`}
+                    >
+                      {message.timestamp}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </ScrollArea>
 
         <div className="px-6 py-4 border-t border-border">

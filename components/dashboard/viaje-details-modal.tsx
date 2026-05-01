@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Separator } from "@/components/ui/separator"
 import { Car, CheckCircle, Clock, DollarSign, MapPin, MessageSquare, Star, Users } from "lucide-react"
 import { useState } from "react"
+import { reservationsApi } from "@/lib/api"
+import { toast } from "sonner"
 
 interface ViajeDetailsModalProps {
   open: boolean
@@ -52,13 +54,22 @@ export function ViajeDetailsModal({
   const [solicitando, setSolicitando] = useState(false)
   const [solicitado, setSolicitado] = useState(false)
 
-  const handleSolicitar = () => {
+  const handleSolicitar = async () => {
     setSolicitando(true)
-    setTimeout(() => {
-      setSolicitando(false)
+    try {
+      await reservationsApi.create({
+        viajeId: viaje.id,
+        asientosReservados: 1,
+      })
       setSolicitado(true)
       onSolicitar?.()
-    }, 1000)
+      toast.success("Solicitud enviada al conductor")
+    } catch (error: any) {
+      const msg = error?.data?.message || "No se pudo enviar la solicitud"
+      toast.error(Array.isArray(msg) ? msg[0] : msg)
+    } finally {
+      setSolicitando(false)
+    }
   }
 
   return (
@@ -209,10 +220,10 @@ export function ViajeDetailsModal({
           </Button>
           <Button
             onClick={handleSolicitar}
-            disabled={solicitando}
+            disabled={solicitando || solicitado || viaje.asientosDisponibles <= 0}
             className="sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground"
           >
-            {solicitando ? "Confirmando..." : "Confirmar"}
+            {solicitando ? "Enviando..." : solicitado ? "Solicitud enviada" : "Confirmar"}
           </Button>
           {onChat && (
             <Button onClick={onChat} variant="ghost" className="sm:w-auto">
