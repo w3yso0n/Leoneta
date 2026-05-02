@@ -7,22 +7,70 @@ import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { useEffect, useRef, useState } from "react"
 
+export type MapRoutePoint = { lat: number; lng: number }
+
+/** Pin de recogida con texto opcional en el hover (búsqueda de viajes). */
+export type MapPickupPin = MapRoutePoint & {
+  conductorNombre?: string
+  hora?: string
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function attachHoverPopup(marker: mapboxgl.Marker, mapInstance: mapboxgl.Map, html: string) {
+  const popup = new mapboxgl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    offset: 18,
+    maxWidth: "280px",
+    className: "map-route-pin-popup",
+  }).setHTML(html)
+
+  const el = marker.getElement()
+  const onEnter = () => {
+    popup.setLngLat(marker.getLngLat()).addTo(mapInstance)
+  }
+  const onLeave = () => {
+    popup.remove()
+  }
+  el.addEventListener("mouseenter", onEnter)
+  el.addEventListener("mouseleave", onLeave)
+}
+
 interface MapRouteProps {
   origin?: string
   destination?: string
+  /** Si hay ≥2 puntos, se dibuja esta polilínea (p. ej. la misma que se guarda en BD). */
+  routePoints?: MapRoutePoint[]
+  /** Punto de encuentro al pulsar «Ver ruta»; solo para centrar si centerOnMeetingPoint. */
+  meetingPoint?: MapRoutePoint | null
+  /** Si true, centra el mapa en meetingPoint tras dibujar la ruta. */
+  centerOnMeetingPoint?: boolean
+  /** Puntos de recogida de todos los rides (se muestran siempre que existan). */
+  pickupPoints?: MapPickupPin[]
   height?: string
   className?: string
   onOriginChange?: (location: string, coords: [number, number]) => void
   onDestinationChange?: (location: string, coords: [number, number]) => void
 }
 
-export function MapRoute({ 
-  origin, 
-  destination, 
-  height = "400px", 
+export function MapRoute({
+  origin,
+  destination,
+  routePoints,
+  meetingPoint,
+  centerOnMeetingPoint,
+  pickupPoints,
+  height = "400px",
   className = "",
   onOriginChange,
-  onDestinationChange
+  onDestinationChange,
 }: MapRouteProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
@@ -119,6 +167,106 @@ export function MapRoute({
       let newOriginCoords: [number, number] | null = null
       let newDestCoords: [number, number] | null = null
 
+      // Polilínea explícita (misma que backend / Directions ya procesada en la página)
+      if (routePoints && routePoints.length >= 2 && map.current) {
+        const coordinates = routePoints.map((p) => [p.lng, p.lat] as [number, number])
+        const start = coordinates[0]
+        const end = coordinates[coordinates.length - 1]
+
+        const placeRoute = () => {
+          if (cancelled || !map.current || generation !== routeUpdateGenerationRef.current) return
+          if (!map.current.isStyleLoaded()) return
+          removeRouteLayer()
+          if (cancelled || generation !== routeUpdateGenerationRef.current) return
+
+          map.current.addSource(routeLayerId, {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates,
+              },
+            },
+          })
+
+          map.current.addLayer({
+            id: routeLayerId,
+            type: "line",
+            source: routeLayerId,
+            layout: {
+              "line-join": "round",
+              "line-cap": "round",
+            },
+            paint: {
+              "line-color": "#3b82f6",
+              "line-width": 4,
+              "line-opacity": 0.75,
+            },
+          })
+
+          const origenLabel = origin ? escapeHtml(origin) : "Origen"
+          const markerOrigen = new mapboxgl.Marker({ color: "#22c55e" })
+            .setLngLat(start)
+            .addTo(map.current!)
+          markersRef.current.push(markerOrigen)
+          attachHoverPopup(
+            markerOrigen,
+            map.current,
+            `<div class="text-xs sm:text-sm leading-snug px-0.5"><p class="font-semibold text-foreground mb-0.5">Origen</p><p class="text-muted-foreground">${origenLabel}</p></div>`,
+          )
+
+          const destLabel = destination ? escapeHtml(destination) : "Destino"
+          const markerDest = new mapboxgl.Marker({ color: "#ef4444" })
+            .setLngLat(end)
+            .addTo(map.current!)
+          markersRef.current.push(markerDest)
+          attachHoverPopup(
+            markerDest,
+            map.current,
+            `<div class="text-xs sm:text-sm leading-snug px-0.5"><p class="font-semibold text-foreground mb-0.5">Destino</p><p class="text-muted-foreground">${destLabel}</p></div>`,
+          )
+
+          const pickupsList = pickupPoints ?? []
+          pickupsList.forEach((p) => {
+            const lngLat: [number, number] = [p.lng, p.lat]
+            const markerPickup = new mapboxgl.Marker({ color: "#a855f7" })
+              .setLngLat(lngLat)
+              .addTo(map.current!)
+            markersRef.current.push(markerPickup)
+            const nombre = escapeHtml(p.conductorNombre?.trim() || "Conductor")
+            const horaRide = escapeHtml(p.hora?.trim() || "—")
+            attachHoverPopup(
+              markerPickup,
+              map.current!,
+              `<div class="text-xs sm:text-sm leading-snug px-0.5"><p class="font-semibold text-foreground mb-1">Ride · Punto de recogida</p><p class="text-foreground">${nombre}</p><p class="text-muted-foreground mt-0.5">Hora de llegada (CUCEI): ${horaRide}</p></div>`,
+            )
+          })
+
+          const boundsRoute = new mapboxgl.LngLatBounds()
+          coordinates.forEach((c) => boundsRoute.extend(c))
+          pickupsList.forEach((p) => boundsRoute.extend([p.lng, p.lat]))
+
+          if (centerOnMeetingPoint && meetingPoint) {
+            map.current.flyTo({
+              center: [meetingPoint.lng, meetingPoint.lat],
+              zoom: 14,
+              duration: 1000,
+            })
+          } else {
+            map.current.fitBounds(boundsRoute, { padding: 80, duration: 1000 })
+          }
+        }
+
+        if (map.current.isStyleLoaded()) {
+          placeRoute()
+        } else {
+          map.current.once("styledata", placeRoute)
+        }
+        return
+      }
+
       // Geocode origin
       if (origin) {
         const coords = await geocode(origin)
@@ -136,9 +284,13 @@ export function MapRoute({
 
           const marker = new mapboxgl.Marker({ color: "#22c55e" })
             .setLngLat(coords)
-            .setPopup(new mapboxgl.Popup().setHTML(`<p class="text-sm font-medium">Origen: ${popupText}</p>`))
             .addTo(map.current!)
           markersRef.current.push(marker)
+          attachHoverPopup(
+            marker,
+            map.current,
+            `<div class="text-xs sm:text-sm leading-snug px-0.5"><p class="font-semibold text-foreground mb-0.5">Origen</p><p class="text-muted-foreground">${escapeHtml(popupText)}</p></div>`,
+          )
         }
       }
 
@@ -151,9 +303,13 @@ export function MapRoute({
           setDestCoords(coords)
           const marker = new mapboxgl.Marker({ color: "#ef4444" })
             .setLngLat(coords)
-            .setPopup(new mapboxgl.Popup().setHTML(`<p class="text-sm font-medium">Destino: ${destination}</p>`))
             .addTo(map.current!)
           markersRef.current.push(marker)
+          attachHoverPopup(
+            marker,
+            map.current,
+            `<div class="text-xs sm:text-sm leading-snug px-0.5"><p class="font-semibold text-foreground mb-0.5">Destino</p><p class="text-muted-foreground">${escapeHtml(destination)}</p></div>`,
+          )
         }
       }
 
@@ -192,18 +348,64 @@ export function MapRoute({
             },
           })
 
-          // Fit map to show entire route
-          const bounds = new mapboxgl.LngLatBounds()
-          bounds.extend(newOriginCoords)
-          bounds.extend(newDestCoords)
-          map.current.fitBounds(bounds, { padding: 80, duration: 1000 })
+          const pickupsGeo = pickupPoints ?? []
+          pickupsGeo.forEach((p) => {
+            const lngLat: [number, number] = [p.lng, p.lat]
+            const markerPickup = new mapboxgl.Marker({ color: "#a855f7" })
+              .setLngLat(lngLat)
+              .addTo(map.current!)
+            markersRef.current.push(markerPickup)
+            const nombre = escapeHtml(p.conductorNombre?.trim() || "Conductor")
+            const horaRide = escapeHtml(p.hora?.trim() || "—")
+            attachHoverPopup(
+              markerPickup,
+              map.current!,
+              `<div class="text-xs sm:text-sm leading-snug px-0.5"><p class="font-semibold text-foreground mb-1">Ride · Punto de recogida</p><p class="text-foreground">${nombre}</p><p class="text-muted-foreground mt-0.5">Hora de llegada (CUCEI): ${horaRide}</p></div>`,
+            )
+          })
+
+          const boundsGeo = new mapboxgl.LngLatBounds()
+          boundsGeo.extend(newOriginCoords)
+          boundsGeo.extend(newDestCoords)
+          pickupsGeo.forEach((p) => boundsGeo.extend([p.lng, p.lat]))
+
+          if (centerOnMeetingPoint && meetingPoint) {
+            map.current.flyTo({
+              center: [meetingPoint.lng, meetingPoint.lat],
+              zoom: 14,
+              duration: 1000,
+            })
+          } else {
+            map.current.fitBounds(boundsGeo, { padding: 80, duration: 1000 })
+          }
         }
       } else if (newOriginCoords || newDestCoords) {
         if (cancelled || !map.current) return
-        // Fit to single marker
+        const pickupsPartial = pickupPoints ?? []
+        pickupsPartial.forEach((p) => {
+          const lngLat: [number, number] = [p.lng, p.lat]
+          const markerPickup = new mapboxgl.Marker({ color: "#a855f7" })
+            .setLngLat(lngLat)
+            .addTo(map.current!)
+          markersRef.current.push(markerPickup)
+          const nombre = escapeHtml(p.conductorNombre?.trim() || "Conductor")
+          const horaRide = escapeHtml(p.hora?.trim() || "—")
+          attachHoverPopup(
+            markerPickup,
+            map.current!,
+            `<div class="text-xs sm:text-sm leading-snug px-0.5"><p class="font-semibold text-foreground mb-1">Ride · Punto de recogida</p><p class="text-foreground">${nombre}</p><p class="text-muted-foreground mt-0.5">Hora de llegada (CUCEI): ${horaRide}</p></div>`,
+          )
+        })
         const coords = newOriginCoords || newDestCoords
         if (coords) {
-          map.current.flyTo({ center: coords, zoom: 13, duration: 1000 })
+          const b = new mapboxgl.LngLatBounds()
+          b.extend(coords)
+          pickupsPartial.forEach((p) => b.extend([p.lng, p.lat]))
+          if (pickupsPartial.length > 0) {
+            map.current.fitBounds(b, { padding: 80, duration: 1000 })
+          } else {
+            map.current.flyTo({ center: coords, zoom: 13, duration: 1000 })
+          }
         }
       }
     }
@@ -213,7 +415,7 @@ export function MapRoute({
     return () => {
       cancelled = true
     }
-  }, [origin, destination])
+  }, [origin, destination, routePoints, meetingPoint, centerOnMeetingPoint, pickupPoints])
 
   return (
     <div 

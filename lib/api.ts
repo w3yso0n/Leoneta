@@ -111,6 +111,11 @@ export interface ApiTrip {
   estado: string;
   notas?: string;
   distanciaKm?: number;
+  /** Solo en búsqueda con lat/lng: punto más cercano de la ruta del conductor al pasajero */
+  puntoEncuentro?: { lat: number; lng: number };
+  distanciaEncuentroMetros?: number;
+  nombreConductor?: string;
+  ruta?: Array<{ lat: number; lng: number }>;
   createdAt: string;
 }
 
@@ -434,8 +439,10 @@ export const tripsApi = {
     hora?: string;
     precioMin?: number;
     precioMax?: number;
-    origenLat?: number;
-    origenLng?: number;
+    /** Cercanía: el backend filtra por radio alrededor de lat/lng */
+    lat?: number;
+    lng?: number;
+    radioMetros?: number;
     page?: number;
     limit?: number;
   }): Promise<{ data: ApiTrip[]; total: number; page: number; limit: number }> {
@@ -461,6 +468,11 @@ export const tripsApi = {
     vehiculoId: string;
     origen: string;
     destino: string;
+    origenLat?: number;
+    origenLng?: number;
+    destinoLat?: number;
+    destinoLng?: number;
+    ruta?: Array<{ lat: number; lng: number }>;
     origenLatitud?: number;
     origenLongitud?: number;
     destinoLatitud?: number;
@@ -473,6 +485,7 @@ export const tripsApi = {
     precio: number;
     metodosPago?: string[];
     notas?: string;
+    duracionEstimadaMin?: number;
   }): Promise<ApiTrip> {
     return apiFetch('/viajes', {
       method: 'POST',

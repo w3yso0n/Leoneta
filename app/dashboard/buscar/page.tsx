@@ -17,15 +17,48 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ArrowUpDown, Clock, DollarSign, Filter, Loader2, MapPin, MapPinned, Navigation, Route, Star, Users } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { tripsApi, type ApiTrip } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
 
 const CUCEI_ADDRESS = "Blvd. Gral. Marcelino García Barragán 1421, Olímpica, 44430 Guadalajara, Jal."
 
+/** Radio fijo (m) para filtro de cercanía cuando hay lat/lng */
+const RADIO_CERCANIA_METROS = 5000
+
+const COORD_TEXT_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/
+
+async function geocodificarDireccion(direccion: string): Promise<{ lat: number; lng: number } | null> {
+  const q = direccion.trim()
+  if (!q) return null
+  const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+  if (!token) return null
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${token}&country=MX&limit=1&proximity=-103.3494,20.6597`
+    const res = await fetch(url)
+    const data = await res.json()
+    if (data.features?.length > 0) {
+      const [lng, lat] = data.features[0].center as [number, number]
+      return { lat, lng }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function formatDistanciaEncuentroMetros(metros: number): string {
+  if (metros < 1000) return `${Math.round(metros)} m`
+  return `${(metros / 1000).toFixed(1)} km`
+}
+
 interface Viaje {
   id: string
+  /** Texto listo del backend (prioridad sobre armar nombre en cliente) */
+  nombreConductor?: string
+  puntoEncuentro?: { lat: number; lng: number }
+  distanciaEncuentroMetros?: number
   conductor: {
     nombre: string
     foto: string
@@ -73,7 +106,12 @@ export default function BuscarViajePage() {
   const [destinoRuta, setDestinoRuta] = useState("")
   const [busquedaRealizada, setBusquedaRealizada] = useState(false)
   const [autoUbicacionIntentada, setAutoUbicacionIntentada] = useState(false)
-  
+  const [ultimaBusquedaInfo, setUltimaBusquedaInfo] = useState<{
+    porCercania: boolean
+    radio: number
+  } | null>(null)
+  const buscarViajesEjecutandoRef = useRef(false)
+
   // Estados de filtros
   const [filtroGenero, setFiltroGenero] = useState<"Todos" | "Masculino" | "Femenino">("Todos")
   const [filtroPrecio, setFiltroPrecio] = useState<number | null>(null)
@@ -168,7 +206,9 @@ export default function BuscarViajePage() {
     return copia.sort((a, b) => (a.distanciaKm || Number.POSITIVE_INFINITY) - (b.distanciaKm || Number.POSITIVE_INFINITY))
   }
 
-  const isCoordenadas = (value: string) => /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(value.trim())
+  const isCoordenadas = (value: string) => COORD_TEXT_RE.test(value.trim())
+
+  const formatearRadio = (m: number) => (m >= 1000 ? `${m / 1000} km` : `${m} m`)
 
   const haversineKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
     const R = 6371
@@ -194,7 +234,11 @@ export default function BuscarViajePage() {
     ubi: { lat: number; lng: number } | null
   } => {
     const v = origenDraft.trim()
-    // Tras GPS: el input muestra la dirección pero miUbicacion sigue siendo coordenadas; un blur sin editar no debe perderlas.
+    // Conservar lat/lng si el texto sigue siendo la misma etiqueta que teníamos con GPS (sin cambio real).
+    if (ubicacionActual && v === miUbicacionTexto.trim()) {
+      return { origenStr: miUbicacion, ubi: ubicacionActual }
+    }
+    // Tras GPS: el input puede mostrar dirección amigable; miUbicacion sigue siendo "lat,lng".
     if (v === miUbicacionTexto.trim() && isCoordenadas(miUbicacion)) {
       return { origenStr: miUbicacion, ubi: ubicacionActual }
     }
@@ -212,6 +256,9 @@ export default function BuscarViajePage() {
   }
 
   const buscarViajes = async (desdeGps?: BuscarViajesDesdeGps) => {
+    if (buscarViajesEjecutandoRef.current) return
+    buscarViajesEjecutandoRef.current = true
+
     let origenStr: string
     let ubi: { lat: number; lng: number } | null
 
@@ -228,38 +275,87 @@ export default function BuscarViajePage() {
       ubi = committed.ubi
     }
 
-    try {
-      const origenQuery = origenStr && !isCoordenadas(origenStr) ? origenStr : undefined
+    if (
+      !ubi &&
+      origenStr.trim() !== "" &&
+      !isCoordenadas(origenStr)
+    ) {
+      const geo = await geocodificarDireccion(origenStr.trim())
+      if (geo) {
+        ubi = geo
+        setUbicacionActual(geo)
+      }
+    }
 
-      // Search trips from API
+    const origenQuery =
+      !ubi && origenStr.trim() !== "" && !isCoordenadas(origenStr)
+        ? origenStr.trim()
+        : undefined
+
+    console.log("Buscando con:", {
+      lat: ubi?.lat,
+      lng: ubi?.lng,
+      origenQuery,
+    })
+
+    try {
       const result = await tripsApi.search({
-        origen: origenQuery,
-        origenLat: ubi?.lat,
-        origenLng: ubi?.lng,
         destino: CUCEI_ADDRESS,
         fecha: fecha || undefined,
+        ...(ubi
+          ? { lat: ubi.lat, lng: ubi.lng, radioMetros: RADIO_CERCANIA_METROS }
+          : origenQuery
+            ? { origen: origenQuery }
+            : {}),
       })
+
+      console.log("Resultados backend:", result.data.length)
 
       const myId = user?.id
       const apiTrips = myId
         ? result.data.filter((t) => t.conductor?.id !== myId && t.conductorId !== myId)
         : result.data
+
+      if (ubi && result.data.length === 0) {
+        toast.info("No encontramos rutas cercanas a tu ubicación")
+      }
+
+      setUltimaBusquedaInfo(
+        ubi
+          ? { porCercania: true, radio: RADIO_CERCANIA_METROS }
+          : { porCercania: false, radio: RADIO_CERCANIA_METROS },
+      )
       
       // Map API trips to local Viaje format
       const mapped: Viaje[] = apiTrips.map((t: ApiTrip) => {
         const oLat = t.origenLat ?? t.origenLatitud
         const oLng = t.origenLng ?? t.origenLongitud
-        const distanciaKm =
-          typeof t.distanciaKm === "number"
-            ? t.distanciaKm
-            : ubi && typeof oLat === "number" && typeof oLng === "number"
-              ? Number(haversineKm(ubi, { lat: oLat, lng: oLng }).toFixed(1))
-              : undefined
+        let distanciaKm: number | undefined
+        if (typeof t.distanciaKm === "number") {
+          distanciaKm = t.distanciaKm
+          console.log("Distancia calculada:", distanciaKm, "(backend)")
+        } else if (ubi && typeof oLat === "number" && typeof oLng === "number") {
+          distanciaKm = Number(haversineKm(ubi, { lat: oLat, lng: oLng }).toFixed(1))
+          console.log("Distancia calculada:", distanciaKm, "(haversine)")
+        }
+
+        const nombreLista =
+          t.nombreConductor?.trim() ||
+          (t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido || ""}`.trim() : "Conductor")
+        const pe = t.puntoEncuentro
+        const puntoEncuentro =
+          pe && typeof pe.lat === "number" && typeof pe.lng === "number"
+            ? { lat: pe.lat, lng: pe.lng }
+            : undefined
 
         return {
         id: t.id,
+        nombreConductor: t.nombreConductor?.trim(),
+        puntoEncuentro,
+        distanciaEncuentroMetros:
+          typeof t.distanciaEncuentroMetros === "number" ? t.distanciaEncuentroMetros : undefined,
         conductor: {
-          nombre: t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido || ''}`.trim() : "Conductor",
+          nombre: nombreLista,
           foto: t.conductor?.fotoUrl || "/placeholder.svg?height=48&width=48",
           rating: t.conductor?.ratingPromedio || 0,
           totalViajes: t.conductor?.totalViajesConductor || 0,
@@ -290,6 +386,9 @@ export default function BuscarViajePage() {
       toast.error("No se pudieron cargar los viajes. Intenta de nuevo.")
       setViajes([])
       setViajesFiltrados([])
+      setUltimaBusquedaInfo(null)
+    } finally {
+      buscarViajesEjecutandoRef.current = false
     }
     setBusquedaRealizada(true)
     setOrigenRuta(origenStr)
@@ -513,9 +612,26 @@ export default function BuscarViajePage() {
       {/* Mapa interactivo */}
       {busquedaRealizada && miUbicacion && (
         <Card className="p-0 overflow-hidden" id="mapa-rutas">
-          <MapRoute 
+          <MapRoute
             origin={origenRuta || miUbicacion}
             destination={destinoRuta || CUCEI_ADDRESS}
+            pickupPoints={viajesFiltrados.flatMap((v) =>
+              v.puntoEncuentro
+                ? [
+                    {
+                      ...v.puntoEncuentro,
+                      conductorNombre: v.nombreConductor || v.conductor.nombre,
+                      hora: v.hora,
+                    },
+                  ]
+                : [],
+            )}
+            meetingPoint={
+              rutaViendose ? viajes.find((v) => v.id === rutaViendose)?.puntoEncuentro : undefined
+            }
+            centerOnMeetingPoint={Boolean(
+              rutaViendose && viajes.find((v) => v.id === rutaViendose)?.puntoEncuentro,
+            )}
             height="350px"
             className="sm:h-[450px]"
           />
@@ -527,7 +643,9 @@ export default function BuscarViajePage() {
                   {rutaViendose ? (
                     <>
                       <p className="font-medium text-foreground">
-                        Viendo ruta de {viajes.find(v => v.id === rutaViendose)?.conductor.nombre}
+                        Viendo ruta de{" "}
+                        {viajes.find((v) => v.id === rutaViendose)?.nombreConductor ||
+                          viajes.find((v) => v.id === rutaViendose)?.conductor.nombre}
                       </p>
                       <p className="text-muted-foreground text-xs">
                         {viajes.find(v => v.id === rutaViendose)?.origen}
@@ -562,6 +680,15 @@ export default function BuscarViajePage() {
       {busquedaRealizada && (
         <>
           <Card className="p-4 sm:p-5 bg-muted/40 border-dashed">
+            {ultimaBusquedaInfo?.porCercania ? (
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3">
+                Mostrando viajes a máximo {formatearRadio(ultimaBusquedaInfo.radio)} de tu ruta
+              </p>
+            ) : ultimaBusquedaInfo != null ? (
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3">
+                Mostrando resultados por coincidencia de texto
+              </p>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="text-xs sm:text-sm">
                 Desde {miUbicacionTexto || miUbicacion}
@@ -725,13 +852,29 @@ export default function BuscarViajePage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge className="bg-primary/10 text-primary hover:bg-primary/20 text-xs sm:text-sm">
-                          {typeof viaje.distanciaKm === "number" ? `${viaje.distanciaKm} km` : "—"}
+                      <div className="flex flex-col items-end gap-1 text-right max-w-[55%]">
+                        <Badge className="bg-primary/10 text-primary hover:bg-primary/20 text-xs sm:text-sm whitespace-normal text-right leading-snug">
+                          {typeof viaje.distanciaKm === "number" &&
+                          typeof viaje.distanciaEncuentroMetros === "number"
+                            ? `${viaje.distanciaKm} km • a ${formatDistanciaEncuentroMetros(viaje.distanciaEncuentroMetros)} de tu ruta`
+                            : typeof viaje.distanciaKm === "number"
+                              ? `${viaje.distanciaKm} km`
+                              : typeof viaje.distanciaEncuentroMetros === "number"
+                                ? formatDistanciaEncuentroMetros(viaje.distanciaEncuentroMetros)
+                                : "—"}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">de ti</span>
+                        {typeof viaje.distanciaKm === "number" ? (
+                          <span className="text-xs text-muted-foreground">de ti</span>
+                        ) : null}
                       </div>
                     </div>
+
+                    {typeof viaje.distanciaEncuentroMetros === "number" && (
+                      <p className="text-xs text-muted-foreground -mt-1">
+                        Te queda a {formatDistanciaEncuentroMetros(viaje.distanciaEncuentroMetros)} de tu
+                        ubicación
+                      </p>
+                    )}
 
                     {/* Ruta simplificada */}
                     <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground bg-muted/30 rounded-lg p-2 sm:p-3">

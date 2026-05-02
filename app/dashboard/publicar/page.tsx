@@ -17,11 +17,96 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Car, CheckCircle2, Clock, DollarSign, Loader2, MapPin, MapPinned, Navigation, Plus, Users } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { tripsApi, vehiclesApi, type ApiVehicle } from "@/lib/api"
 import { toast } from "sonner"
 
 const CUCEI_ADDRESS = "Blvd. Gral. Marcelino García Barragán 1421, Olímpica, 44430 Guadalajara, Jal."
+
+/** Coordenadas aproximadas de CUCEI (Guadalajara) */
+const CUCEI_LAT = 20.653922
+const CUCEI_LNG = -103.324608
+
+type RutaPunto = { lat: number; lng: number }
+
+/** 50 puntos en línea recta entre origen y destino (matching por cercanía / densidad en backend). */
+function interpolarRutaLineal50(
+  origenLatVal: number,
+  origenLngVal: number,
+  destinoLatVal: number,
+  destinoLngVal: number,
+): RutaPunto[] {
+  const steps = 50
+  const puntos: RutaPunto[] = []
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1)
+    const lat = origenLatVal + (destinoLatVal - origenLatVal) * t
+    const lng = origenLngVal + (destinoLngVal - origenLngVal) * t
+    puntos.push({ lat, lng })
+  }
+  return puntos
+}
+
+async function obtenerRutaReal(
+  origenLat: number,
+  origenLng: number,
+  destinoLat: number,
+  destinoLng: number,
+): Promise<RutaPunto[] | null> {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+  if (!token) return null
+  try {
+    const path = `${origenLng},${origenLat};${destinoLng},${destinoLat}`
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${path}?geometries=geojson&overview=full&access_token=${token}`
+    const response = await fetch(url)
+    const data = await response.json()
+    if (data.routes?.length > 0) {
+      const coordinates = data.routes[0].geometry?.coordinates as [number, number][] | undefined
+      if (!Array.isArray(coordinates) || coordinates.length === 0) return null
+      return coordinates.map(([lng, lat]) => ({ lat, lng }))
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+/** Muestreo a ~100 puntos si la ruta de calles trae muchos vértices (matching por cercanía / payload). */
+function reducirRuta(ruta: RutaPunto[]): RutaPunto[] {
+  if (ruta.length <= 100) return ruta
+
+  const cada = Math.ceil(ruta.length / 100)
+
+  const out = ruta.filter((_, i) => i % cada === 0)
+
+  const last = ruta[ruta.length - 1]
+  const end = out[out.length - 1]
+
+  if (!end || end.lat !== last.lat || end.lng !== last.lng) {
+    out.push(last)
+  }
+
+  return out
+}
+
+/** Misma lógica que al publicar: Directions (calles) → lineal 50 → reducir si hace falta. */
+async function computeRutaFinalParaViaje(
+  oLat: number,
+  oLng: number,
+  dLat: number,
+  dLng: number,
+): Promise<RutaPunto[]> {
+  const rutaLineal = interpolarRutaLineal50(oLat, oLng, dLat, dLng)
+  const rutaReal = await obtenerRutaReal(oLat, oLng, dLat, dLng)
+  let rutaFinal: RutaPunto[] = rutaReal ?? rutaLineal
+  if (rutaFinal.length < 5) {
+    rutaFinal = rutaLineal
+  }
+  if (rutaFinal.length > 200) {
+    rutaFinal = reducirRuta(rutaFinal)
+  }
+  return rutaFinal
+}
 
 interface FormData {
   origen: string
@@ -129,6 +214,13 @@ export default function PublicarViajePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [geolocalizando, setGeolocalizando] = useState(false)
+  const [origenLat, setOrigenLat] = useState<number | null>(null)
+  const [origenLng, setOrigenLng] = useState<number | null>(null)
+  const [destinoLat] = useState<number>(CUCEI_LAT)
+  const [destinoLng] = useState<number>(CUCEI_LNG)
+  const [ruta, setRuta] = useState<RutaPunto[]>([])
+  const [geocoding, setGeocoding] = useState(false)
+  const geocodingBusyRef = useRef(false)
   const [modoPublicacion, setModoPublicacion] = useState<"unitario" | "rutina">("rutina")
   const [rutinaDias, setRutinaDias] = useState<number[]>([1, 2, 3, 4, 5]) // Lun-Vie
   const [rutinaSemanas, setRutinaSemanas] = useState(12)
@@ -211,6 +303,59 @@ export default function PublicarViajePage() {
     return "Mi ubicación actual"
   }
 
+  const geocodificarDireccion = async (
+    direccion: string,
+    options?: { omitBusyGuard?: boolean }
+  ): Promise<{ lat: number; lng: number } | null> => {
+    const q = direccion.trim()
+    if (!q) {
+      setOrigenLat(null)
+      setOrigenLng(null)
+      return null
+    }
+    if (!options?.omitBusyGuard && geocodingBusyRef.current) return null
+    const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+    if (!token) return null
+
+    geocodingBusyRef.current = true
+    setGeocoding(true)
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${token}&country=MX&limit=1&proximity=-103.3494,20.6597`
+      const response = await fetch(url)
+      const data = await response.json()
+      if (data.features?.length > 0) {
+        const center = data.features[0].center as [number, number]
+        const lng = center[0]
+        const lat = center[1]
+        setOrigenLat(lat)
+        setOrigenLng(lng)
+        return { lat, lng }
+      }
+    } catch {
+      // sin toast: UX intacta
+    } finally {
+      geocodingBusyRef.current = false
+      setGeocoding(false)
+    }
+    return null
+  }
+
+  useEffect(() => {
+    if (origenLat === null || origenLng === null) {
+      setRuta([])
+      return
+    }
+    const lineal = interpolarRutaLineal50(origenLat, origenLng, destinoLat, destinoLng)
+    setRuta(lineal)
+    let cancelled = false
+    void computeRutaFinalParaViaje(origenLat, origenLng, destinoLat, destinoLng).then((r) => {
+      if (!cancelled) setRuta(r)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [origenLat, origenLng, destinoLat, destinoLng])
+
   const obtenerUbicacionActual = () => {
     setGeolocalizando(true)
 
@@ -223,8 +368,10 @@ export default function PublicarViajePage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords
+        setOrigenLat(latitude)
+        setOrigenLng(longitude)
         const direccion = await obtenerDireccionDesdeCoordenadas(latitude, longitude)
-        setFormData({ ...formData, origen: direccion })
+        setFormData((prev) => ({ ...prev, origen: direccion }))
         setGeolocalizando(false)
       },
       (error) => {
@@ -269,9 +416,27 @@ export default function PublicarViajePage() {
       return
     }
 
+    let latSubmit = origenLat
+    let lngSubmit = origenLng
+    if (latSubmit === null || lngSubmit === null) {
+      const resolved = await geocodificarDireccion(formData.origen, { omitBusyGuard: true })
+      if (resolved) {
+        latSubmit = resolved.lat
+        lngSubmit = resolved.lng
+      }
+    }
+    if (latSubmit === null || lngSubmit === null) {
+      toast.error(
+        "No se pudo ubicar el origen. Escribe una dirección clara (ej. colonia y ciudad) o usa «Usar mi ubicación»."
+      )
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
+      const rutaFinal = await computeRutaFinalParaViaje(latSubmit, lngSubmit, destinoLat, destinoLng)
+
       const fechaEnvio = esRutinaSemanal ? nextDateForSelectedDays(rutinaDias) : formData.fecha
       const duracionEstimadaMin = calcDuracionMin(formData.hora, formData.horaLlegada)
 
@@ -279,6 +444,11 @@ export default function PublicarViajePage() {
         vehiculoId: selectedVehicleId,
         origen: formData.origen,
         destino: CUCEI_ADDRESS,
+        origenLat: latSubmit,
+        origenLng: lngSubmit,
+        destinoLat,
+        destinoLng,
+        ruta: rutaFinal,
         fecha: fechaEnvio,
         hora: formData.hora,
         ...(esRutinaSemanal ? { recurrenciaSemanalDias: rutinaDias, recurrenciaSemanalSemanas: rutinaSemanas } : {}),
@@ -288,6 +458,7 @@ export default function PublicarViajePage() {
         ...(duracionEstimadaMin !== undefined ? { duracionEstimadaMin } : {}),
       })
 
+      setRuta(rutaFinal)
       setShowSuccess(true)
       toast.success("¡Viaje publicado exitosamente!")
 
@@ -307,6 +478,9 @@ export default function PublicarViajePage() {
           mascotasPermitidas: false,
         },
       })
+      setOrigenLat(null)
+      setOrigenLng(null)
+      setRuta([])
 
       setTimeout(() => {
         router.push("/dashboard/mis-viajes")
@@ -596,12 +770,19 @@ export default function PublicarViajePage() {
                   )}
                 </Button>
                 <div className="flex-1 relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  {geocoding ? (
+                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
+                  ) : (
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  )}
                   <Input
                     id="origen"
                     placeholder="Ej: Av. Patria 1500, Zapopan"
                     value={formData.origen}
                     onChange={(e) => setFormData({ ...formData, origen: e.target.value })}
+                    onBlur={(e) => {
+                      void geocodificarDireccion(e.target.value)
+                    }}
                     className={`pl-9 text-sm ${errors.origen ? "border-destructive" : ""}`}
                   />
                 </div>
@@ -828,9 +1009,10 @@ export default function PublicarViajePage() {
         {/* Mapa de ruta */}
         {formData.origen && (
           <Card className="p-0 overflow-hidden">
-            <MapRoute 
+            <MapRoute
               origin={formData.origen}
               destination={CUCEI_ADDRESS}
+              routePoints={ruta.length >= 2 ? ruta : undefined}
               height="300px"
               className="sm:h-[400px]"
             />
